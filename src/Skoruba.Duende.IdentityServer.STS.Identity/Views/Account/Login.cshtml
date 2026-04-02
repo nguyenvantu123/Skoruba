@@ -84,9 +84,9 @@
                                 tw-validation />
                         </div>
 
-                        @if (Model.AllowRememberLogin)
+                        @if (Model.AllowRememberLogin && !Model.HasTenantContext)
                         {
-                            <div class="flex items-center space-x-2">
+                            <div id="tenant-login-remember" class="flex items-center space-x-2">
                                 <input asp-for="RememberLogin" type="checkbox" class="checkbox" id="RememberLogin" />
                                 <label for="RememberLogin" class="label cursor-pointer text-sm">
                                     @Localizer["Remember"]
@@ -94,25 +94,28 @@
                             </div>
                         }
 
-                        <div class="form-item">
-                            <button type="submit" name="button" value="login" class="btn-default w-full">
-                                <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
-                                @Localizer["Login"]
-                            </button>
-                        </div>
+                        @if (!Model.HasTenantContext)
+                        {
+                            <div id="tenant-login-submit" class="form-item">
+                                <button type="submit" name="button" value="login" class="btn-default w-full">
+                                    <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
+                                    @Localizer["Login"]
+                                </button>
+                            </div>
 
-                        <div class="flex justify-between text-sm">
-                            <a asp-action="ForgotPassword" asp-controller="Account"
-                                class="text-primary hover:underline inline-flex items-center gap-1">
-                                <lucideicon name="key" class="h-3 w-3" />
-                                @Localizer["Forgot"]
-                            </a>
-                            <button type="submit" name="button" value="cancel"
-                                class="text-primary hover:underline inline-flex items-center gap-1">
-                                <lucideicon name="x" class="h-3 w-3" />
-                                @Localizer["Cancel"]
-                            </button>
-                        </div>
+                            <div id="tenant-login-links" class="flex justify-between text-sm">
+                                <a asp-action="ForgotPassword" asp-controller="Account"
+                                    class="text-primary hover:underline inline-flex items-center gap-1">
+                                    <lucideicon name="key" class="h-3 w-3" />
+                                    @Localizer["Forgot"]
+                                </a>
+                                <button type="submit" name="button" value="cancel"
+                                    class="text-primary hover:underline inline-flex items-center gap-1">
+                                    <lucideicon name="x" class="h-3 w-3" />
+                                    @Localizer["Cancel"]
+                                </button>
+                            </div>
+                        }
 
                         @if (Model.VisibleExternalProviders.Any())
                         {

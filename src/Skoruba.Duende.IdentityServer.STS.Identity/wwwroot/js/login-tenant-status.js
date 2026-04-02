@@ -15,6 +15,23 @@
     var logoContainer = document.getElementById("tenant-status-logo");
     var logoImage = document.getElementById("tenant-status-logo-image");
 
+    function hideElement(id) {
+        var element = document.getElementById(id);
+        if (!element) {
+            return;
+        }
+
+        element.classList.add("hidden");
+    }
+
+    function hideTenantLocalActions() {
+        hideElement("tenant-login-remember");
+        hideElement("tenant-login-submit");
+        hideElement("tenant-login-links");
+        hideElement("tenant-header-login");
+        hideElement("tenant-header-login-mobile");
+    }
+
     function setIndicator(state) {
         if (!indicator) {
             return;
@@ -62,6 +79,7 @@
     }
 
     setLogo(null);
+    hideTenantLocalActions();
     setBanner(
         banner.getAttribute("data-loading-title") || "Loading tenant",
         banner.getAttribute("data-loading-message") || "",

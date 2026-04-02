@@ -6,15 +6,19 @@
 @using Skoruba.Duende.IdentityServer.STS.Identity.Configuration
 @using Duende.IdentityServer
 @using Microsoft.Extensions.Options
+@using TenantInfrastructure.Abstractions
 @inject IRootConfiguration RootConfiguration
 @inject IViewLocalizer Localizer
 @inject IOptions<ServerSideSessionsConfiguration> ServerSideSessionsOptions
+@inject ITenantContextAccessor TenantAccessor
 @{
     string name = null;
     if (!true.Equals(ViewData["signed-out"]))
     {
         name = Context.User?.GetDisplayName();
     }
+
+    var hasTenantContext = TenantAccessor.Current != null;
 }
 @inject SignInManager<UserIdentity> SignInManager
 @{
@@ -132,10 +136,16 @@
                 }
                 else
                 {
-                    <a class="btn-outline inline-flex items-center gap-2" asp-action="Login" asp-controller="Account">
-                        <lucideicon name="log-in" class="h-4 w-4" />
-                        @Localizer["Login"]
-                    </a>
+                    @if (!hasTenantContext)
+                    {
+                        <a id="tenant-header-login"
+                           class="btn-outline inline-flex items-center gap-2"
+                           asp-action="Login"
+                           asp-controller="Account">
+                            <lucideicon name="log-in" class="h-4 w-4" />
+                            @Localizer["Login"]
+                        </a>
+                    }
                 }
                 <button id="theme-toggle" class="btn-ghost btn-icon" aria-label="Toggle theme">
                     <span id="theme-toggle-dark-icon" class="hidden">
@@ -183,10 +193,16 @@
                     }
                     else
                     {
-                        <a class="btn-outline inline-flex items-center gap-2" asp-action="Login" asp-controller="Account">
-                            <lucideicon name="log-in" class="h-4 w-4" />
-                            @Localizer["Login"]
-                        </a>
+                        @if (!hasTenantContext)
+                        {
+                            <a id="tenant-header-login-mobile"
+                               class="btn-outline inline-flex items-center gap-2"
+                               asp-action="Login"
+                               asp-controller="Account">
+                                <lucideicon name="log-in" class="h-4 w-4" />
+                                @Localizer["Login"]
+                            </a>
+                        }
                     }
                     <button id="theme-toggle-mobile" class="btn-ghost btn-icon" aria-label="Toggle theme">
                         <span id="theme-toggle-dark-icon-mobile" class="hidden">
