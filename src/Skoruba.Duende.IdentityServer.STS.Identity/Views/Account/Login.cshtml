@@ -94,14 +94,16 @@
                             </div>
                         }
 
+                        <div id="tenant-login-submit" class="form-item">
+                            <button type="submit" name="button" value="login" class="btn-default w-full">
+                                <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
+                                @Localizer["Login"]
+                            </button>
+                        </div>
+
                         @if (!Model.HasTenantContext)
                         {
-                            <div id="tenant-login-submit" class="form-item">
-                                <button type="submit" name="button" value="login" class="btn-default w-full">
-                                    <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
-                                    @Localizer["Login"]
-                                </button>
-                            </div>
+                           
 
                             <div id="tenant-login-links" class="flex justify-between text-sm">
                                 <a asp-action="ForgotPassword" asp-controller="Account"
