@@ -1,0 +1,20 @@
+<Project>
+
+  <PropertyGroup>    
+    <Version>3.0.0-preview.22</Version>
+    <Authors>Jan Škoruba</Authors>
+    <PackageTags>Duende IdentityServer Admin OpenIDConnect OAuth2 Identity</PackageTags>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>nuget-icon.png</PackageIcon>
+    <PackageProjectUrl>https://github.com/skoruba/Duende.IdentityServer.Admin</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <None Include="../../docs/Images/nuget-icon.png" Pack="true" Visible="false" PackagePath="" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

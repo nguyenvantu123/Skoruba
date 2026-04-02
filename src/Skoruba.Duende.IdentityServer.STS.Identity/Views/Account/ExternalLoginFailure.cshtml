@@ -1,0 +1,15 @@
+﻿@inject IViewLocalizer Localizer
+@using Microsoft.AspNetCore.Mvc.Localization
+@{
+    ViewData["Title"] = Localizer["Title"];
+}
+
+<div class="py-8">
+    <h1 class="text-4xl font-bold mb-2">@ViewData["Title"]</h1>
+    <div class="alert-destructive">
+        <lucideicon name="alert-circle" class="h-4 w-4" />
+        <div>
+            <div class="alert-description">@Localizer["Error"]</div>
+        </div>
+    </div>
+</div>

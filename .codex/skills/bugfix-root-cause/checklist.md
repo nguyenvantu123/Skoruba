@@ -1,0 +1,5 @@
+- Root cause identified
+- Narrow code path inspected
+- Fix is targeted
+- Validation run
+- Final explanation written

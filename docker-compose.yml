@@ -1,0 +1,142 @@
+version: '3.4'
+services:
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - '/var/run/docker.sock:/tmp/docker.sock:ro'
+      - './shared/nginx/vhost.d:/etc/nginx/vhost.d'
+      - './shared/nginx/certs:/etc/nginx/certs:ro'
+    networks:
+      proxy: null
+      identityserverui:
+        aliases:
+          - sts.skoruba.local
+          - admin.skoruba.local
+          - admin-api.skoruba.local
+    restart: always
+  skoruba.duende.identityserver.admin:
+    image: '${DOCKER_REGISTRY-}skoruba-duende-identityserver-admin'
+    build:
+      context: .
+      dockerfile: src/Skoruba.Duende.IdentityServer.Admin/Dockerfile
+    container_name: skoruba-duende-identityserver-admin
+    environment:
+      - VIRTUAL_PORT=8080
+      - VIRTUAL_HOST=admin.skoruba.local
+      - 'ConnectionStrings__DataProtectionDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'AdminConfiguration__AuthenticationConfiguration__Authority=https://sts.skoruba.local'
+      - 'AdminConfiguration__ApiConfiguration__ApiRemoteConfiguration__RemoteUrl=https://admin-api.skoruba.local'
+      - 'AdminConfiguration__BasicConfiguration__Title=Skoruba Duende IdentityServer Admin'
+      - 'AdminConfiguration__BasicConfiguration__BasePath=/'
+      - ForwardedHeadersConfiguration__Enabled=true
+      - ForwardedHeadersConfiguration__AllowAll=true
+      - ForwardedHeadersConfiguration__ForwardLimit=1
+      - DockerConfiguration__UpdateCaCertificate=true
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - db
+      - skoruba.duende.identityserver.sts.identity
+    volumes:
+      - './shared/serilog.json:/app/serilog.json'
+      - './shared/nginx/certs/cacerts.crt:/usr/local/share/ca-certificates/cacerts.crt'
+    networks:
+      identityserverui: null
+  skoruba.duende.identityserver.admin.api:
+    image: '${DOCKER_REGISTRY-}skoruba-duende-identityserver-admin-api'
+    build:
+      context: .
+      dockerfile: src/Skoruba.Duende.IdentityServer.Admin.Api/Dockerfile
+    container_name: skoruba-duende-identityserver-admin-api
+    environment:
+      - VIRTUAL_PORT=8080
+      - VIRTUAL_HOST=admin-api.skoruba.local
+      - AdminApiConfiguration__RequireHttpsMetadata=false
+      - 'AdminApiConfiguration__ApplicationName=Skoruba Duende IdentityServer Admin UI'
+      - 'AdminApiConfiguration__ApiBaseUrl=https://admin-api.skoruba.local'
+      - 'AdminApiConfiguration__IdentityServerBaseUrl=https://sts.skoruba.local'
+      - 'ConnectionStrings__ConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__PersistedGrantDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__AdminLogDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__AdminAuditLogDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__AdminConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__DataProtectionDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'IdentityServerData__Clients__0__ClientUri=https://admin.skoruba.local'
+      - 'IdentityServerData__Clients__0__RedirectUris__0=https://admin.skoruba.local/signin-oidc'
+      - 'IdentityServerData__Clients__0__FrontChannelLogoutUri=https://admin.skoruba.local/signin-oidc'
+      - 'IdentityServerData__Clients__0__PostLogoutRedirectUris__0=https://admin.skoruba.local/signout-callback-oidc'
+      - 'IdentityServerData__Clients__0__AllowedCorsOrigins__0=https://admin.skoruba.local'
+      - 'IdentityServerData__Clients__1__RedirectUris__0=https://admin-api.skoruba.local/swagger/oauth2-redirect.html'
+      - 'SeedConfiguration__ApplySeed=true'
+      - 'DatabaseMigrationsConfiguration__ApplyDatabaseMigrations=true'
+      - ForwardedHeadersConfiguration__Enabled=true
+      - ForwardedHeadersConfiguration__AllowAll=true
+      - ForwardedHeadersConfiguration__ForwardLimit=1
+      - DockerConfiguration__UpdateCaCertificate=true
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - './shared/serilog.json:/app/serilog.json'
+      - './shared/identitydata.json:/app/identitydata.json'
+      - './shared/identityserverdata.json:/app/identityserverdata.json'
+      - './shared/nginx/certs/cacerts.crt:/usr/local/share/ca-certificates/cacerts.crt'
+    networks:
+      identityserverui: null
+  skoruba.duende.identityserver.sts.identity:
+    image: '${DOCKER_REGISTRY-}skoruba-duende-identityserver-sts-identity'
+    build:
+      context: .
+      dockerfile: src/Skoruba.Duende.IdentityServer.STS.Identity/Dockerfile
+    container_name: skoruba-duende-identityserver-sts-identity
+    environment:
+      - VIRTUAL_PORT=8080
+      - VIRTUAL_HOST=sts.skoruba.local
+      - 'ConnectionStrings__ConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__PersistedGrantDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'ConnectionStrings__DataProtectionDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
+      - 'AdminConfiguration__IdentityAdminBaseUrl=https://admin.skoruba.local'
+      - 'IdentityServerOptions__IssuerUri=https://sts.skoruba.local'
+      - IdentityServerOptions__KeyManagement__Enabled=true
+      - IdentityServerOptions__Events__RaiseErrorEvents=true
+      - IdentityServerOptions__Events__RaiseInformationEvents=true
+      - IdentityServerOptions__Events__RaiseFailureEvents=true
+      - IdentityServerOptions__Events__RaiseSuccessEvents=true
+      - ServerSideSessionsConfiguration__Enabled=true
+      - ForwardedHeadersConfiguration__Enabled=true
+      - ForwardedHeadersConfiguration__AllowAll=true
+      - ForwardedHeadersConfiguration__ForwardLimit=1
+      - DockerConfiguration__UpdateCaCertificate=true
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - db
+    volumes:
+      - './shared/serilog.json:/app/serilog.json'
+      - './shared/nginx/certs/cacerts.crt:/usr/local/share/ca-certificates/cacerts.crt'
+    networks:
+      identityserverui:
+        aliases:
+          - sts.skoruba.local
+  db:
+    image: 'mcr.microsoft.com/mssql/server:2017-CU20-ubuntu-16.04'
+    ports:
+      - '7900:1433'
+    container_name: skoruba-duende-identityserver-db
+    environment:
+      SA_PASSWORD: '${DB_PASSWORD:-Password_123}'
+      ACCEPT_EULA: 'Y'
+    volumes:
+      - 'dbdata:/var/opt/mssql'
+    networks:
+      identityserverui: null
+volumes:
+  dbdata:
+    driver: local
+networks:
+  proxy:
+    driver: bridge
+  identityserverui:
+    driver: bridge

@@ -1,0 +1,30 @@
+@inject IViewLocalizer Localizer
+@using Microsoft.AspNetCore.Mvc.Localization
+@{
+    ViewData["Title"] = Localizer["Title"];
+}
+
+<section class="space-y-6 max-w-2xl">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">@ViewData["Title"]</h2>
+        </div>
+
+        <div class="card-content space-y-6">
+            <div class="alert-destructive">
+                <lucideicon name="alert-circle" class="h-4 w-4" />
+                <div>
+                    <div class="alert-title">@Localizer["SubTitle"]</div>
+                    <div class="alert-description">@Localizer["Info"]</div>
+                </div>
+            </div>
+
+            <form asp-action="ResetAuthenticator" method="post">
+                <button class="btn-destructive" type="submit">
+                    <lucideicon name="rotate-ccw" class="inline-block h-4 w-4 mr-2" />
+                    @Localizer["Reset"]
+                </button>
+            </form>
+        </div>
+    </div>
+</section>

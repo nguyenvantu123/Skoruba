@@ -1,0 +1,9 @@
+- Requirement translated into technical scope
+- Impacted layers identified
+- Ca- Requirement translated into technical scope
+- Impacted layers identified
+- Candidate files identified
+- Risks listed
+- Plan written before codingndidate files identified
+- Risks listed
+- Plan written before coding

@@ -1,0 +1,40 @@
+@inject IViewLocalizer Localizer
+@using Microsoft.AspNetCore.Mvc.Localization
+
+@{
+    ViewData["Title"] = Localizer["Title"];
+}
+
+<div class="py-8">
+    <h1 class="text-4xl font-bold mb-6">@ViewData["Title"]</h1>
+
+    <div class="max-w-2xl space-y-6">
+        <div class="alert-default">
+            <lucideicon name="info" class="h-4 w-4" />
+            <div>
+                <div class="alert-description">@Localizer["Info"]</div>
+            </div>
+        </div>
+        
+        <form asp-action="DownloadPersonalData" method="post">
+            <button class="btn-default" type="submit">
+                <lucideicon name="download" class="inline-block h-4 w-4 mr-2" />
+                @Localizer["Download"]
+            </button>
+        </form>
+        
+        <div class="alert-destructive">
+            <lucideicon name="alert-circle" class="h-4 w-4" />
+            <div>
+                <div class="alert-description">@Localizer["Warning"]</div>
+            </div>
+        </div>
+        
+        <div>
+            <a asp-action="DeletePersonalData" class="btn-destructive">
+                <lucideicon name="trash-2" class="inline-block h-4 w-4 mr-2" />
+                @Localizer["Delete"]
+            </a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "Local Multi Host",
+    "Projects": [
+      {
+        "Path": "src\\Skoruba.Duende.IdentityServer.STS.Identity\\Skoruba.Duende.IdentityServer.STS.Identity.csproj",
+        "Action": "Start",
+        "DebugTarget": "Skoruba.Duende.IdentityServer.AspNetIdentity"
+      },
+      {
+        "Path": "src\\Skoruba.Duende.IdentityServer.Admin.Api\\Skoruba.Duende.IdentityServer.Admin.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Skoruba.Duende.IdentityServer.Admin.Api"
+      },
+      {
+        "Path": "src\\Skoruba.Duende.IdentityServer.Admin\\Skoruba.Duende.IdentityServer.Admin.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      }
+    ]
+  }
+]

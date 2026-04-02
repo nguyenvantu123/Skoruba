@@ -1,0 +1,4 @@
+- Security-sensitive settings identified
+- Risks stated explicitly
+- Safe path proposed
+- Changes minimized

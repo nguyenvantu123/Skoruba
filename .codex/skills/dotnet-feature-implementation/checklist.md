@@ -1,0 +1,5 @@
+- Existing patterns inspected
+- Architecture preserved
+- Business logic not embedded in controller
+- Build/test executed
+- Final summary produced

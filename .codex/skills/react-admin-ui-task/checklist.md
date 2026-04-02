@@ -1,0 +1,4 @@
+- Existing component pattern reused
+- API client usage checked
+- Loading/error states handled
+- Frontend build run if feasible

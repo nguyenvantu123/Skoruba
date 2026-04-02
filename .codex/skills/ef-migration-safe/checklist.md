@@ -1,0 +1,6 @@
+- Entity inspected
+- Configuration inspected
+- DbContext inspected
+- Migration need assessed
+- Provider implications checked
+- Build/validation run

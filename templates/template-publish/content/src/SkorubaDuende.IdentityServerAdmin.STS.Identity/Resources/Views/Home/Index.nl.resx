@@ -1,0 +1,62 @@
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>1.3</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="2FA" xml:space="preserve">
+    <value>Two-factor authenticatie</value>
+  </data>
+  <data name="2FADescription" xml:space="preserve">
+    <value>Activeer of beheer two-factor authenticatie</value>
+  </data>
+  <data name="ChangePassword" xml:space="preserve">
+    <value>Wijzig wachtwoord</value>
+  </data>
+  <data name="ChangePasswordDescription" xml:space="preserve">
+    <value>Update uw accountwachtwoord</value>
+  </data>
+  <data name="Discovery" xml:space="preserve">
+    <value>Discovery Document</value>
+  </data>
+  <data name="DiscoveryDescription" xml:space="preserve">
+    <value>Bekijk OpenID Connect configuratie</value>
+  </data>
+  <data name="Grants" xml:space="preserve">
+    <value>Persisted Grants</value>
+  </data>
+  <data name="GrantsDescription" xml:space="preserve">
+    <value>Beheer applicatiemachtigingen</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>Login</value>
+  </data>
+  <data name="LoginDescription" xml:space="preserve">
+    <value>Meld u aan bij uw account</value>
+  </data>
+  <data name="ManagePersonalData" xml:space="preserve">
+    <value>Mijn persoonlijke gegevens</value>
+  </data>
+  <data name="ManagePersonalDataDescription" xml:space="preserve">
+    <value>Download of verwijder uw gegevens</value>
+  </data>
+  <data name="ManageProfile" xml:space="preserve">
+    <value>Mijn profiel</value>
+  </data>
+  <data name="ManageProfileDescription" xml:space="preserve">
+    <value>Update uw profielinformatie</value>
+  </data>
+  <data name="SubTitle" xml:space="preserve">
+    <value>Welkom bij {0}</value>
+  </data>
+  <data name="ViewDetails" xml:space="preserve">
+    <value>Bekijk details</value>
+  </data>
+</root>
