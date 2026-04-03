@@ -12,6 +12,8 @@ using Skoruba.AuditLogging.EntityFramework.Entities;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Interfaces;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Configuration;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Interfaces;
+using System;
+using System.Linq;
 using System.Reflection;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql
@@ -45,32 +47,39 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
             where TAuditLog : AuditLog
         {
             var migrationsAssembly = "Skoruba.Duende.IdentityServer.Admin.EntityFramework.MySql";
+            var identityConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.IdentityDbConnection);
+            var configurationConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.ConfigurationDbConnection);
+            var persistedGrantConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.PersistedGrantDbConnection);
+            var adminLogConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.AdminLogDbConnection);
+            var adminAuditLogConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.AdminAuditLogDbConnection);
+            var dataProtectionConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.DataProtectionDbConnection);
+            var adminConfigurationConnectionString = NormalizeMySqlConnectionStringForDevelopment(connectionStrings.AdminConfigurationDbConnection);
 
             // Config DB for identity
             services.AddDbContext<TIdentityDbContext>(options =>
-             options.UseMySQL(connectionStrings.IdentityDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+             options.UseMySQL(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // Config DB from existing connection
 
             services.AddConfigurationDbContext<TConfigurationDbContext>(options =>
        options.ConfigureDbContext = b =>
-           b.UseMySQL(connectionStrings.ConfigurationDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+           b.UseMySQL(configurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // Operational DB from existing connection
-            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseMySQL(connectionStrings.PersistedGrantDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseMySQL(persistedGrantConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // Log DB from existing connection
-            services.AddDbContext<TLogDbContext>(options => options.UseMySQL(connectionStrings.AdminLogDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TLogDbContext>(options => options.UseMySQL(adminLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // Audit logging connection
-            services.AddDbContext<TAuditLoggingDbContext>(options => options.UseMySQL(connectionStrings.AdminAuditLogDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TAuditLoggingDbContext>(options => options.UseMySQL(adminAuditLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // DataProtectionKey DB from existing connection
-            if (!string.IsNullOrEmpty(connectionStrings.DataProtectionDbConnection))
-                services.AddDbContext<TDataProtectionDbContext>(options => options.UseMySQL(connectionStrings.DataProtectionDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+            if (!string.IsNullOrEmpty(dataProtectionConnectionString))
+                services.AddDbContext<TDataProtectionDbContext>(options => options.UseMySQL(dataProtectionConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
 
             // Admin configuration DB from existing connection
-            services.AddDbContext<TAdminConfigurationDbContext>(options => options.UseMySQL(connectionStrings.AdminConfigurationDbConnection, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TAdminConfigurationDbContext>(options => options.UseMySQL(adminConfigurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
         }
 
         /// <summary>
@@ -96,6 +105,10 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
     where TDataProtectionDbContext : DbContext, IDataProtectionKeyContext
         {
             var migrationsAssembly = typeof(DatabaseExtensions).GetTypeInfo().Assembly.GetName().Name;
+            identityConnectionString = NormalizeMySqlConnectionStringForDevelopment(identityConnectionString);
+            configurationConnectionString = NormalizeMySqlConnectionStringForDevelopment(configurationConnectionString);
+            persistedGrantConnectionString = NormalizeMySqlConnectionStringForDevelopment(persistedGrantConnectionString);
+            dataProtectionConnectionString = NormalizeMySqlConnectionStringForDevelopment(dataProtectionConnectionString);
 
             // Identity DB
             services.AddDbContext<TIdentityDbContext>(options =>
@@ -131,7 +144,34 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
         {
             var assembly = migrationsAssembly ?? typeof(DatabaseExtensions).GetTypeInfo().Assembly.GetName().Name;
             services.AddDbContext<TDataProtectionDbContext>(options =>
-                options.UseMySQL(connectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+                options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(connectionString), b => b.MigrationsAssembly(migrationsAssembly)));
+        }
+
+        private static string NormalizeMySqlConnectionStringForDevelopment(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return connectionString;
+            }
+
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+            if (!isDevelopment)
+            {
+                return connectionString;
+            }
+
+            var parts = connectionString
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Where(part =>
+                {
+                    var trimmedPart = part.TrimStart();
+                    return !trimmedPart.StartsWith("SslMode=", StringComparison.OrdinalIgnoreCase) &&
+                           !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase) &&
+                           !trimmedPart.StartsWith("AllowPublicKeyRetrieval=", StringComparison.OrdinalIgnoreCase);
+                });
+
+            return $"{string.Join(";", parts)};AllowPublicKeyRetrieval=True;SslMode=Disabled";
         }
     }
 }

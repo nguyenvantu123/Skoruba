@@ -241,10 +241,11 @@ public static class StartupService
             {
                 var trimmedPart = part.TrimStart();
                 return !trimmedPart.StartsWith("SslMode=", StringComparison.OrdinalIgnoreCase) &&
-                       !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase);
+                       !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase) &&
+                       !trimmedPart.StartsWith("AllowPublicKeyRetrieval=", StringComparison.OrdinalIgnoreCase);
             });
 
-        return $"{string.Join(";", parts)};SslMode=Disabled";
+        return $"{string.Join(";", parts)};AllowPublicKeyRetrieval=True;SslMode=Disabled";
     }
 
     private static bool IsLocalDevelopmentHttpsUri(string? uri)

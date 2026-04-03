@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using System.Linq;
 using TenantInfrastructure.Abstractions;
 using TenantInfrastructure.Identity;
 using TenantInfrastructure.MasterDb;
@@ -38,7 +39,7 @@ public static class ServiceCollectionExtensions
         // master db factory
         services.AddDbContextFactory<MasterDbContext>(db =>
         {
-            db.UseMySQL(opt.MasterConnectionString);
+            db.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(opt.MasterConnectionString));
         });
 
         // store + cache
@@ -64,5 +65,32 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITenantUserValidator, TenantUserValidator>();
 
         return services;
+    }
+
+    private static string NormalizeMySqlConnectionStringForDevelopment(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return connectionString;
+        }
+
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+        if (!isDevelopment)
+        {
+            return connectionString;
+        }
+
+        var parts = connectionString
+            .Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Where(part =>
+            {
+                var trimmedPart = part.TrimStart();
+                return !trimmedPart.StartsWith("SslMode=", StringComparison.OrdinalIgnoreCase) &&
+                       !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase) &&
+                       !trimmedPart.StartsWith("AllowPublicKeyRetrieval=", StringComparison.OrdinalIgnoreCase);
+            });
+
+        return $"{string.Join(";", parts)};AllowPublicKeyRetrieval=True;SslMode=Disabled";
     }
 }

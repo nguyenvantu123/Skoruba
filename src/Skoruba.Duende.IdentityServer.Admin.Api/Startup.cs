@@ -306,10 +306,11 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                 {
                     var trimmedPart = part.TrimStart();
                     return !trimmedPart.StartsWith("SslMode=", StringComparison.OrdinalIgnoreCase) &&
-                           !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase);
+                           !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase) &&
+                           !trimmedPart.StartsWith("AllowPublicKeyRetrieval=", StringComparison.OrdinalIgnoreCase);
                 });
 
-            return $"{string.Join(";", parts)};SslMode=Disabled";
+            return $"{string.Join(";", parts)};AllowPublicKeyRetrieval=True;SslMode=Disabled";
         }
 
         public virtual void RegisterAuthentication(IServiceCollection services)
