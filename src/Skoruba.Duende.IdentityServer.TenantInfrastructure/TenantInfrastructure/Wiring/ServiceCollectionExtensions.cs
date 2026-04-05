@@ -39,7 +39,8 @@ public static class ServiceCollectionExtensions
         // master db factory
         services.AddDbContextFactory<MasterDbContext>(db =>
         {
-            db.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(opt.MasterConnectionString));
+            db.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(opt.MasterConnectionString))
+                .UseLowerCaseNamingConvention();
         });
 
         // store + cache

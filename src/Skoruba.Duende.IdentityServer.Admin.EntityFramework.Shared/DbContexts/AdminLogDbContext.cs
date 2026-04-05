@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Constants;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Entities;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Interfaces;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Helpers;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
 {
@@ -22,6 +23,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
             base.OnModelCreating(builder);
 
             ConfigureLogContext(builder);
+            builder.ApplyLowerCaseNames();
         }
 
         private void ConfigureLogContext(ModelBuilder builder)

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Interfaces;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Entities;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Helpers;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Helpers;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts;
 
@@ -24,6 +25,7 @@ public class AdminConfigurationDbContext : DbContext, IAdminConfigurationStoreDb
 
         ConfigureConfigurationRules(modelBuilder);
         SeedDefaultRules(modelBuilder);
+        modelBuilder.ApplyLowerCaseNames();
     }
 
     private void ConfigureConfigurationRules(ModelBuilder modelBuilder)

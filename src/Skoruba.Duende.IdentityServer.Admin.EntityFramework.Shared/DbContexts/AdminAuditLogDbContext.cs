@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Skoruba.AuditLogging.EntityFramework.DbContexts;
 using Skoruba.AuditLogging.EntityFramework.Entities;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Helpers;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
 {
@@ -22,5 +23,11 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
         }
 
         public DbSet<AuditLog> AuditLog { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            modelBuilder.ApplyLowerCaseNames();
+        }
     }
 }

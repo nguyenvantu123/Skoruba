@@ -21,6 +21,8 @@ using Skoruba.Duende.IdentityServer.Admin.Api.Helpers;
 using Skoruba.Duende.IdentityServer.Admin.Api.Services;
 using Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Shared.Services.Interfaces;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Configuration;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.PostgreSQL;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Entities.Identity;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Configuration;
@@ -255,10 +257,12 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                         options.UseSqlServer(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly));
                         break;
                     case DatabaseProviderType.PostgreSQL:
-                        options.UseNpgsql(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseNpgsql(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaPostgreSqlNamingConvention();
                         break;
                     case DatabaseProviderType.MySql:
-                        options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(identityConnectionString), b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(identityConnectionString), b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(providerType),
@@ -278,10 +282,12 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                         options.UseSqlServer(connectionString, b => b.MigrationsAssembly(migrationsAssembly));
                         break;
                     case DatabaseProviderType.PostgreSQL:
-                        options.UseNpgsql(connectionString, b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseNpgsql(connectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaPostgreSqlNamingConvention();
                         break;
                     case DatabaseProviderType.MySql:
-                        options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(connectionString), b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(connectionString), b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(providerType),
@@ -312,7 +318,6 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
 
             return $"{string.Join(";", parts)};AllowPublicKeyRetrieval=True;SslMode=Disabled";
         }
-
         public virtual void RegisterAuthentication(IServiceCollection services)
         {
             services.AddApiAuthentication<AdminIdentityDbContext, UserIdentity, UserIdentityRole>(Configuration);

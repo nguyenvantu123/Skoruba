@@ -5,6 +5,7 @@ using Duende.IdentityServer.EntityFramework.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.MySql.Helpers;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts;
 
@@ -26,7 +27,8 @@ public sealed class IdentityServerConfigurationDbContextFactory : IDesignTimeDbC
 
         optionsBuilder.UseMySQL(
             GetConnectionString(),
-            mySql => mySql.MigrationsAssembly(typeof(MigrationAssembly).Assembly.GetName().Name));
+            mySql => mySql.MigrationsAssembly(typeof(MigrationAssembly).Assembly.GetName().Name))
+            .UseSkorubaMySqlNamingConvention();
         optionsBuilder.UseApplicationServiceProvider(serviceProvider);
 
         return new IdentityServerConfigurationDbContext(optionsBuilder.Options);

@@ -105,10 +105,10 @@
         "RequireClientSecret": false,
         "RequirePkce": true,
         "RedirectUris": [
-          "https://api.dev.localhost:5100/swagger/oauth2-redirect.html"
+          "https://api.dev.localhost:5102/swagger/oauth2-redirect.html"
         ],
         "AllowedScopes": ["skoruba_identity_admin_api"],
-        "AllowedCorsOrigins": ["https://api.dev.localhost:5100"]
+        "AllowedCorsOrigins": ["https://api.dev.localhost:5102"]
       }
     ]
   }

@@ -7,7 +7,7 @@
         <SpaRoot>..\Skoruba.Duende.IdentityServer.Admin.UI.Client</SpaRoot>
         <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
         <SpaProxyServerUrl>https://admin.dev.localhost:5004</SpaProxyServerUrl>
-        <UserSecretsId>f4677efe-bc9a-4778-b625-4f0be700881a</UserSecretsId>
+        <UserSecretsId>9c91d295-54c5-4d09-9bd6-fa56fb74011b</UserSecretsId>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
 

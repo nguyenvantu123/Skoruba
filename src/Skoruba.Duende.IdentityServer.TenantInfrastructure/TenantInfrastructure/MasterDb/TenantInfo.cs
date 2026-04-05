@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace TenantInfrastructure.MasterDb;
 
+[Table("tenants")]
 public sealed class TenantInfo
 {
     private static readonly JsonSerializerOptions ConnectionSecretsSerializerOptions = new(JsonSerializerDefaults.Web);

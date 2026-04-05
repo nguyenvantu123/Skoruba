@@ -28,6 +28,19 @@ public sealed class TenantProfileService : IProfileService
             return;
         }
 
+        var displayName = user.UserName ?? user.Email;
+        if (!string.IsNullOrWhiteSpace(displayName) &&
+            ShouldIssueClaim(context, JwtClaimTypes.Name, displayName))
+        {
+            context.IssuedClaims.Add(new Claim(JwtClaimTypes.Name, displayName));
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.Email) &&
+            ShouldIssueClaim(context, JwtClaimTypes.Email, user.Email))
+        {
+            context.IssuedClaims.Add(new Claim(JwtClaimTypes.Email, user.Email));
+        }
+
         var userRoles = await _userManager.GetRolesAsync(user);
         foreach (var role in userRoles)
         {

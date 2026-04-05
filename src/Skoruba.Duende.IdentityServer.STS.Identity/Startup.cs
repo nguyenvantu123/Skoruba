@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Configuration;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.PostgreSQL;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Configuration.Schema;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Entities.Identity;
@@ -198,12 +200,14 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                         options.UseSqlServer(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly));
                         break;
                     case DatabaseProviderType.PostgreSQL:
-                        options.UseNpgsql(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseNpgsql(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaPostgreSqlNamingConvention();
                         break;
                     case DatabaseProviderType.MySql:
                         options.UseMySQL(
                             NormalizeMySqlConnectionStringForDevelopment(identityConnectionString, isDevelopment),
-                            b => b.MigrationsAssembly(migrationsAssembly));
+                            b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(providerType),
@@ -239,12 +243,14 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                         options.UseSqlServer(connectionString, b => b.MigrationsAssembly(migrationsAssembly));
                         break;
                     case DatabaseProviderType.PostgreSQL:
-                        options.UseNpgsql(connectionString, b => b.MigrationsAssembly(migrationsAssembly));
+                        options.UseNpgsql(connectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaPostgreSqlNamingConvention();
                         break;
                     case DatabaseProviderType.MySql:
                         options.UseMySQL(
                             NormalizeMySqlConnectionStringForDevelopment(connectionString, isDevelopment),
-                            b => b.MigrationsAssembly(migrationsAssembly));
+                            b => b.MigrationsAssembly(migrationsAssembly))
+                            .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(providerType),

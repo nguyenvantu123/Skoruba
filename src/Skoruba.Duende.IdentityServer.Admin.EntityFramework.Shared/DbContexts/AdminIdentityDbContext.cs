@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Configuration.Schema;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Entities.Identity;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.EntityConfigurations;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Helpers;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
 {
@@ -36,6 +37,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
             builder.ApplyConfiguration(new ApplicationUserConfiguration());
 
             ConfigureIdentityContext(builder);
+            builder.ApplyLowerCaseNames();
         }
 
         private void ConfigureIdentityContext(ModelBuilder builder)

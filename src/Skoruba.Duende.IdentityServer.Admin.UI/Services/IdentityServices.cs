@@ -36,6 +36,10 @@ public static class IdentityServices
         var routes = new List<RouteConfig>();
         var clusters = new List<ClusterConfig>();
         var loopbackDevHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var isDevelopment = string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
 
         foreach (var api in config.Apis)
         {
@@ -82,6 +86,13 @@ public static class IdentityServices
                     // For local dev proxy hops, connect to loopback directly and keep the original HTTPS host for TLS.
                     socketsHttpHandler.ConnectCallback = (context, cancellationToken) =>
                         ConnectToProxyDestinationAsync(context, cancellationToken, loopbackDevHosts);
+
+                    if (isDevelopment)
+                    {
+                        // Local dev services use mkcert-issued certificates that may not be trusted by .NET
+                        // on every machine yet. Accept them only for the in-process loopback proxy hop.
+                        socketsHttpHandler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+                    }
                 }
             });
         }

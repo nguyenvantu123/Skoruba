@@ -23,12 +23,10 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Kestrel__Certificates__Default__Subject": "dev.localhost",
-        "Kestrel__Certificates__Default__Store": "My",
-        "Kestrel__Certificates__Default__Location": "CurrentUser",
-        "Kestrel__Certificates__Default__AllowInvalid": "true"
+        "Kestrel__Certificates__Default__Path": "../../.certs/local-dev-mkcert.p12",
+        "Kestrel__Certificates__Default__Password": "changeit"
       },
-      "applicationUrl": "https://api.dev.localhost:5100"
+      "applicationUrl": "https://api.dev.localhost:5102"
     }
   }
 }

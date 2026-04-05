@@ -57,29 +57,36 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
 
             // Config DB for identity
             services.AddDbContext<TIdentityDbContext>(options =>
-             options.UseMySQL(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+             options.UseMySQL(identityConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                 .UseSkorubaMySqlNamingConvention());
 
             // Config DB from existing connection
 
             services.AddConfigurationDbContext<TConfigurationDbContext>(options =>
        options.ConfigureDbContext = b =>
-           b.UseMySQL(configurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+           b.UseMySQL(configurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+               .UseSkorubaMySqlNamingConvention());
 
             // Operational DB from existing connection
-            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseMySQL(persistedGrantConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseMySQL(persistedGrantConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaMySqlNamingConvention());
 
             // Log DB from existing connection
-            services.AddDbContext<TLogDbContext>(options => options.UseMySQL(adminLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TLogDbContext>(options => options.UseMySQL(adminLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaMySqlNamingConvention());
 
             // Audit logging connection
-            services.AddDbContext<TAuditLoggingDbContext>(options => options.UseMySQL(adminAuditLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TAuditLoggingDbContext>(options => options.UseMySQL(adminAuditLogConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaMySqlNamingConvention());
 
             // DataProtectionKey DB from existing connection
             if (!string.IsNullOrEmpty(dataProtectionConnectionString))
-                services.AddDbContext<TDataProtectionDbContext>(options => options.UseMySQL(dataProtectionConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+                services.AddDbContext<TDataProtectionDbContext>(options => options.UseMySQL(dataProtectionConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                    .UseSkorubaMySqlNamingConvention());
 
             // Admin configuration DB from existing connection
-            services.AddDbContext<TAdminConfigurationDbContext>(options => options.UseMySQL(adminConfigurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TAdminConfigurationDbContext>(options => options.UseMySQL(adminConfigurationConnectionString, b => b.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaMySqlNamingConvention());
         }
 
         /// <summary>
@@ -112,21 +119,25 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
 
             // Identity DB
             services.AddDbContext<TIdentityDbContext>(options =>
-                options.UseMySQL(identityConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly)));
+                options.UseMySQL(identityConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly))
+                    .UseSkorubaMySqlNamingConvention());
 
             // Configuration DB
             services.AddConfigurationDbContext<TConfigurationDbContext>(options =>
                 options.ConfigureDbContext = db =>
-                    db.UseMySQL(configurationConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly)));
+                    db.UseMySQL(configurationConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly))
+                        .UseSkorubaMySqlNamingConvention());
 
             // Persisted Grants DB
             services.AddOperationalDbContext<TPersistedGrantDbContext>(options =>
                 options.ConfigureDbContext = db =>
-                    db.UseMySQL(persistedGrantConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly)));
+                    db.UseMySQL(persistedGrantConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly))
+                        .UseSkorubaMySqlNamingConvention());
 
             // DataProtection DB
             services.AddDbContext<TDataProtectionDbContext>(options =>
-                options.UseMySQL(dataProtectionConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly)));
+                options.UseMySQL(dataProtectionConnectionString, mySql => mySql.MigrationsAssembly(migrationsAssembly))
+                    .UseSkorubaMySqlNamingConvention());
         }
 
         /// <summary>
@@ -144,7 +155,8 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySq
         {
             var assembly = migrationsAssembly ?? typeof(DatabaseExtensions).GetTypeInfo().Assembly.GetName().Name;
             services.AddDbContext<TDataProtectionDbContext>(options =>
-                options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(connectionString), b => b.MigrationsAssembly(migrationsAssembly)));
+                options.UseMySQL(NormalizeMySqlConnectionStringForDevelopment(connectionString), b => b.MigrationsAssembly(migrationsAssembly))
+                    .UseSkorubaMySqlNamingConvention());
         }
 
         private static string NormalizeMySqlConnectionStringForDevelopment(string connectionString)

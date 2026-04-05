@@ -24,5 +24,7 @@ public sealed class MasterDbContext : DbContext
             e.Property(x => x.RedirectUrl).HasMaxLength(2048);
             e.Property(x => x.IsActive).IsRequired();
         });
+
+        b.ApplyLowerCaseNames();
     }
 }

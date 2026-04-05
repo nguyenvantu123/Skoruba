@@ -11,7 +11,8 @@ public sealed class MasterDbContextFactory : IDesignTimeDbContextFactory<MasterD
         var connectionString = NormalizeMySqlConnectionStringForDevelopment(ResolveConnectionString(args));
         var optionsBuilder = new DbContextOptionsBuilder<MasterDbContext>();
 
-        optionsBuilder.UseMySQL(connectionString);
+        optionsBuilder.UseMySQL(connectionString)
+            .UseLowerCaseNamingConvention();
 
         return new MasterDbContext(optionsBuilder.Options);
     }

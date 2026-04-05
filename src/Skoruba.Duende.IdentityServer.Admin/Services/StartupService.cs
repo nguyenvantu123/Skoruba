@@ -126,7 +126,7 @@ public static class StartupService
             })
             .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
             {
-                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.Path = "/";
                 if (adminConfiguration.AuthenticationConfiguration.PersistLogin)
                 {

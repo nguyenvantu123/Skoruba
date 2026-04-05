@@ -8,6 +8,7 @@ using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Entities
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Interfaces;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Constants;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.EntityConfigurations;
+using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Helpers;
 
 namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
 {
@@ -61,6 +62,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts
                 .HasDefaultValue(false);
 
             builder.ApplyConfiguration(new ClientTenantRedirectUriConfiguration());
+            builder.ApplyLowerCaseNames();
         }
     }
 }

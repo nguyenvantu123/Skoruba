@@ -49,32 +49,39 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Post
 
             // Config DB for identity
             services.AddDbContext<TIdentityDbContext>(options =>
-                options.UseNpgsql(connectionStrings.IdentityDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.IdentityDbMigrationsAssembly ?? migrationsAssembly)));
+                options.UseNpgsql(connectionStrings.IdentityDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.IdentityDbMigrationsAssembly ?? migrationsAssembly))
+                    .UseSkorubaPostgreSqlNamingConvention());
 
             // Config DB from existing connection
             services.AddConfigurationDbContext<TConfigurationDbContext>(options =>
                 options.ConfigureDbContext = b =>
-                    b.UseNpgsql(connectionStrings.ConfigurationDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.ConfigurationDbMigrationsAssembly ?? migrationsAssembly)));
+                    b.UseNpgsql(connectionStrings.ConfigurationDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.ConfigurationDbMigrationsAssembly ?? migrationsAssembly))
+                        .UseSkorubaPostgreSqlNamingConvention());
 
             // Operational DB from existing connection
             services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b =>
-                b.UseNpgsql(connectionStrings.PersistedGrantDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.PersistedGrantDbMigrationsAssembly ?? migrationsAssembly)));
+                b.UseNpgsql(connectionStrings.PersistedGrantDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.PersistedGrantDbMigrationsAssembly ?? migrationsAssembly))
+                    .UseSkorubaPostgreSqlNamingConvention());
 
             // Log DB from existing connection
             services.AddDbContext<TLogDbContext>(options => options.UseNpgsql(connectionStrings.AdminLogDbConnection,
-                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminLogDbMigrationsAssembly ?? migrationsAssembly)));
+                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminLogDbMigrationsAssembly ?? migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
 
             // Audit logging connection
             services.AddDbContext<TAuditLoggingDbContext>(options => options.UseNpgsql(connectionStrings.AdminAuditLogDbConnection,
-                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminAuditLogDbMigrationsAssembly ?? migrationsAssembly)));
+                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminAuditLogDbMigrationsAssembly ?? migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
 
             // DataProtectionKey DB from existing connection
             if (!string.IsNullOrEmpty(connectionStrings.DataProtectionDbConnection))
-                services.AddDbContext<TDataProtectionDbContext>(options => options.UseNpgsql(connectionStrings.DataProtectionDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.DataProtectionDbMigrationsAssembly ?? migrationsAssembly)));
+                services.AddDbContext<TDataProtectionDbContext>(options => options.UseNpgsql(connectionStrings.DataProtectionDbConnection, sql => sql.MigrationsAssembly(databaseMigrations.DataProtectionDbMigrationsAssembly ?? migrationsAssembly))
+                    .UseSkorubaPostgreSqlNamingConvention());
 
             // Admin configuration DB from existing connection
             services.AddDbContext<TAdminConfigurationDbContext>(options => options.UseNpgsql(connectionStrings.AdminConfigurationDbConnection,
-                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminConfigurationDbMigrationsAssembly ?? migrationsAssembly)));
+                optionsSql => optionsSql.MigrationsAssembly(databaseMigrations.AdminConfigurationDbMigrationsAssembly ?? migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
         }
 
         /// <summary>
@@ -104,16 +111,20 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Post
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
             // Config DB for identity
-            services.AddDbContext<TIdentityDbContext>(options => options.UseNpgsql(identityConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TIdentityDbContext>(options => options.UseNpgsql(identityConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
 
             // Config DB from existing connection
-            services.AddConfigurationDbContext<TConfigurationDbContext>(options => options.ConfigureDbContext = b => b.UseNpgsql(configurationConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly)));
+            services.AddConfigurationDbContext<TConfigurationDbContext>(options => options.ConfigureDbContext = b => b.UseNpgsql(configurationConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
 
             // Operational DB from existing connection
-            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseNpgsql(persistedGrantConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly)));
+            services.AddOperationalDbContext<TPersistedGrantDbContext>(options => options.ConfigureDbContext = b => b.UseNpgsql(persistedGrantConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
 
             // DataProtectionKey DB from existing connection
-            services.AddDbContext<TDataProtectionDbContext>(options => options.UseNpgsql(dataProtectionConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly)));
+            services.AddDbContext<TDataProtectionDbContext>(options => options.UseNpgsql(dataProtectionConnectionString, sql => sql.MigrationsAssembly(migrationsAssembly))
+                .UseSkorubaPostgreSqlNamingConvention());
         }
 
         /// <summary>
@@ -132,6 +143,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Post
             var assembly = migrationsAssembly ?? typeof(DatabaseExtensions).GetTypeInfo().Assembly.GetName().Name;
             services.AddDbContext<TDataProtectionDbContext>(options =>
                 options.UseNpgsql(connectionString, x => x.MigrationsAssembly(assembly))
+                    .UseSkorubaPostgreSqlNamingConvention()
             );
         }
     }
