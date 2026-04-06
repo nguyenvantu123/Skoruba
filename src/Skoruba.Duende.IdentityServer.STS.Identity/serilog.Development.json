@@ -1,0 +1,10 @@
+{
+  "Serilog": {
+    "MinimumLevel": {
+      "Override": {
+        "Microsoft.EntityFrameworkCore.Database.Command": "Information",
+        "Skoruba.Duende.IdentityServer.STS.Identity.Services.StsIdentityDbConnectionStringResolver": "Information"
+      }
+    }
+  }
+}
