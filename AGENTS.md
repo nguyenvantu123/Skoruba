@@ -24,16 +24,19 @@ Your goal is to implement user requirements while preserving architecture, secur
 
 ## Solution architecture map
 - UI/UX changes: `src/Skoruba.Duende.IdentityServer.Admin.UI.Client`
+- UI host/composition changes: `src/Skoruba.Duende.IdentityServer.Admin`, `src/Skoruba.Duende.IdentityServer.Admin.UI`, `src/Skoruba.Duende.IdentityServer.Admin.UI.Spa`
 - API surface: `src/Skoruba.Duende.IdentityServer.Admin.Api` and `src/Skoruba.Duende.IdentityServer.Admin.UI.Api`
 - Business rules: `src/Skoruba.Duende.IdentityServer.Admin.BusinessLogic*`
 - Persistence: `src/Skoruba.Duende.IdentityServer.Admin.EntityFramework*`
 - Auth/token behavior: `src/Skoruba.Duende.IdentityServer.STS.Identity`
 - Shared contracts/config: `src/Skoruba.Duende.IdentityServer.Shared*`
+- Tenant infrastructure: `src/Skoruba.Duende.IdentityServer.TenantInfrastructure`
 
 ## Working style
 - First inspect relevant files before editing.
 - Before major changes, summarize the implementation plan in 5-10 bullets.
 - After edits, run the narrowest useful validation first, then broader tests if needed.
+- For UI client changes, run `npm run lint` and `npm run build` in `src/Skoruba.Duende.IdentityServer.Admin.UI.Client` before marking done.
 - When changing API contracts, check UI callers and DTO mappings.
 - When changing EF entities, check mapping, migrations, and dependent services.
 - When changing IdentityServer config or auth flow, review security implications explicitly.
@@ -52,6 +55,8 @@ When finishing a task, always report:
 - Run focused build: `dotnet build <project-path>`
 - Test: `dotnet test`
 - Frontend install: `npm install`
+- Frontend clean install (CI-style): `npm ci`
+- Frontend lint: `npm run lint`
 - Frontend build: `npm run build`
 - Frontend test/lint if present: inspect package.json first
 

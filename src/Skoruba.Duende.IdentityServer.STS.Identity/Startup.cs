@@ -1,18 +1,15 @@
-using Duende.IdentityServer;
 using Duende.IdentityServer.Configuration;
 using Duende.IdentityServer.Stores;
 using HealthChecks.UI.Client;
-using IdentityModel;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Configuration;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.PostgreSQL;
@@ -27,11 +24,13 @@ using Skoruba.Duende.IdentityServer.STS.Identity.Helpers;
 using Skoruba.Duende.IdentityServer.STS.Identity.Stores;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using TenantInfrastructure.Abstractions;
 using TenantInfrastructure.Resolution;
 using TenantInfrastructure.Wiring;
-using Skoruba.Duende.IdentityServer.STS.Identity.Services;
 using Microsoft.Extensions.Logging;
+using TenantInfrastructure.Identity;
+using Skoruba.Duende.IdentityServer.STS.Identity.Services;
 
 namespace Skoruba.Duende.IdentityServer.STS.Identity
 {
@@ -62,7 +61,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                 opt.MasterConnectionString = NormalizeMySqlConnectionStringForDevelopment(
                     Configuration.GetConnectionString("MasterDb"),
                     Environment.IsDevelopment());
-                opt.RedisConnectionString = Configuration.GetConnectionString("Redis");
+                opt.RedisConnectionString = Configuration.GetConnectionString("Redis") ?? string.Empty;
                 opt.RedisInstanceName = Configuration.GetValue<string>("TenantInfrastructure:RedisInstanceName") ?? "tenant-registry:";
                 opt.ApplyMasterDbMigrations = Configuration.GetValue<bool>("TenantInfrastructure:ApplyMasterDbMigrations");
                 opt.AllowMasterDbAutoMigration = Configuration.GetValue<bool>("TenantInfrastructure:AllowMasterDbAutoMigration");
@@ -71,6 +70,11 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                 opt.Resolution.ReservedSubdomains.Add("sts");
                 opt.Resolution.ReservedSubdomains.Add("identity");
                 opt.Resolution.ReservedSubdomains.Add("sso");
+
+                // Mobile clients call central STS and send tenant via header.
+                // Use one canonical header to avoid ambiguity across clients/gateways.
+                opt.Resolution.TenantHeaderNames.Clear();
+                opt.Resolution.TenantHeaderNames.Add("X-Tenant-Id");
 
                 if (Uri.TryCreate(tenantIdentityDbResolution.CentralBaseUrl, UriKind.Absolute, out var centralUri))
                 {
@@ -220,16 +224,22 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
         {
             var configuration = serviceProvider.GetRequiredService<IConfiguration>();
             var tenantAccessor = serviceProvider.GetRequiredService<ITenantContextAccessor>();
+            var httpContextAccessor = serviceProvider.GetService<IHttpContextAccessor>();
 
             var tableConfiguration = new IdentityTableConfiguration();
             configuration.GetSection(nameof(IdentityTableConfiguration)).Bind(tableConfiguration);
 
-            if (tenantAccessor.Current != null)
+            if (tenantAccessor.Current != null || IsTenantPrincipal(httpContextAccessor?.HttpContext?.User))
             {
                 configuration.GetSection("TenantIdentityTableConfiguration").Bind(tableConfiguration);
             }
 
             return tableConfiguration;
+        }
+
+        private static bool IsTenantPrincipal(ClaimsPrincipal principal)
+        {
+            return !string.IsNullOrWhiteSpace(principal?.FindFirst(TenantClaimTypes.TenantKey)?.Value);
         }
 
         private static void AddConfiguredDbContext<TContext>(IServiceCollection services, DatabaseProviderType providerType, string connectionString, string migrationsAssembly, bool isDevelopment)
