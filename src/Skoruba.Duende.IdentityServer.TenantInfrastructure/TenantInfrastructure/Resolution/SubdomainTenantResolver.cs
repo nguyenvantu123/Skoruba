@@ -16,6 +16,9 @@ public sealed class SubdomainTenantResolver : ITenantResolver
 
     public string? ResolveTenantKey(HttpContext http)
     {
+        var host = http.Request.Host.Host;
+        var isSkipHost = !string.IsNullOrWhiteSpace(host) && _opt.SkipHosts.Contains(host);
+
         var fromQuery = ResolveFromQuery(http);
         if (!string.IsNullOrWhiteSpace(fromQuery))
         {
@@ -34,13 +37,19 @@ public sealed class SubdomainTenantResolver : ITenantResolver
             return fromHeader;
         }
 
+        // On central/skip hosts (e.g., localhost), require an explicit tenant signal
+        // from query/returnUrl/header instead of reviving a stale tenant cookie.
+        if (isSkipHost)
+        {
+            return null;
+        }
+
         var fromCookie = ResolveFromCookies(http);
         if (!string.IsNullOrWhiteSpace(fromCookie))
         {
             return fromCookie;
         }
 
-        var host = http.Request.Host.Host;
         var parts = host.Split('.', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < _opt.MinHostParts) return null;
 

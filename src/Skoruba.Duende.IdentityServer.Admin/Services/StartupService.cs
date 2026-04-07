@@ -347,7 +347,7 @@ public static class StartupService
                 return "<none>";
             }
 
-            return string.Join("; ", request.Form.Select(x => $"{x.Key}={Truncate(string.Join(",", x.Value), 256)}"));
+            return string.Join("; ", request.Form.Select(x => $"{x.Key}={Truncate(x.Value.ToString(), 256)}"));
         }
         catch (Exception ex)
         {
@@ -357,7 +357,7 @@ public static class StartupService
 
     private static string DumpHeaders(IHeaderDictionary headers)
     {
-        return string.Join("; ", headers.Select(h => $"{h.Key}={Truncate(string.Join(",", h.Value), 256)}"));
+        return string.Join("; ", headers.Select(h => $"{h.Key}={Truncate(h.Value.ToString(), 256)}"));
     }
 
     private static string DumpClaims(IEnumerable<System.Security.Claims.Claim>? claims)
