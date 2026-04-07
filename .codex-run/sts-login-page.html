@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skoruba Duende IdentityServer</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.svg" />
+    <link rel="shortcut icon" type="image/x-icon"
+        href="/favicon.svg" />
+    <script src="/js/theme-init.js?v=Z1SIDQo1AKNiB-rkmN-n_-kUiyjAnw-iewvfbJrHZhI"></script>
+    <link href="/css/app.css?v=3pP2chPGcTwRjSB9ztAhke8mlFsI9u6vmsuSZqF_sH8" rel="stylesheet" />
+    
+</head>
+
+<body class="flex min-h-screen flex-col bg-background text-foreground">
+    <div id="app-loading-overlay" class="app-loading-overlay is-visible" aria-live="polite" aria-busy="true">
+        <div class="app-loading-spinner" role="status" aria-label="Loading"></div>
+    </div>
+
+    <header
+        class="sticky top-0 z-50 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <nav class="container flex h-16 items-center">
+            <a class="text-lg font-semibold tracking-tight hover:opacity-90" href="/">
+                Skoruba Duende IdentityServer
+            </a>
+            <div class="ml-auto hidden items-center gap-4 md:flex">
+                <button id="theme-toggle" class="btn-ghost btn-icon" aria-label="Toggle theme">
+                    <span id="theme-toggle-dark-icon" class="hidden">
+                        <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="h-5 w-5"
+  class="lucide lucide-moon"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+</svg>
+
+                    </span>
+                    <span id="theme-toggle-light-icon" class="hidden">
+                        <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="h-5 w-5"
+  class="lucide lucide-sun"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="4" />
+  <path d="M12 2v2" />
+  <path d="M12 20v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="m17.66 17.66 1.41 1.41" />
+  <path d="M2 12h2" />
+  <path d="M20 12h2" />
+  <path d="m6.34 17.66-1.41 1.41" />
+  <path d="m19.07 4.93-1.41 1.41" />
+</svg>
+
+                    </span>
+                </button>
+            </div>
+
+            <details class="ml-auto md:hidden">
+                <summary class="list-none">
+                    <button class="btn-outline inline-flex items-center gap-2">
+                        <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="h-5 w-5"
+  class="lucide lucide-menu"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M4 5h16" />
+  <path d="M4 12h16" />
+  <path d="M4 19h16" />
+</svg>
+
+                        Menu
+                    </button>
+                </summary>
+                <div class="mt-3 space-y-2">
+                    <button id="theme-toggle-mobile" class="btn-ghost btn-icon" aria-label="Toggle theme">
+                        <span id="theme-toggle-dark-icon-mobile" class="hidden">
+                            <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="h-5 w-5"
+  class="lucide lucide-moon"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+</svg>
+
+                        </span>
+                        <span id="theme-toggle-light-icon-mobile" class="hidden">
+                            <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="h-5 w-5"
+  class="lucide lucide-sun"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="4" />
+  <path d="M12 2v2" />
+  <path d="M12 20v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="m17.66 17.66 1.41 1.41" />
+  <path d="M2 12h2" />
+  <path d="M20 12h2" />
+  <path d="m6.34 17.66-1.41 1.41" />
+  <path d="m19.07 4.93-1.41 1.41" />
+</svg>
+
+                        </span>
+                    </button>
+                </div>
+            </details>
+        </nav>
+    </header>
+
+    <div class="container flex-1 px-4 md:px-6">
+        <main role="main" class="py-6">
+            
+<div class="bg-background flex min-h-[calc(100vh-300px)] flex-col items-center justify-center gap-6 py-8 px-6 md:px-10">
+    <div class="w-full max-w-md">
+        <div class="flex flex-col items-center gap-2 text-center mb-6">
+            <a href="/" class="flex flex-col items-center gap-2 font-medium">
+                <div class="flex h-20 w-20 items-center justify-center rounded-md">
+                    <img src="/images/skoruba-icon.svg" alt="Logo"
+                        class="h-16 w-auto opacity-90 dark:invert" />
+                </div>
+                <span class="sr-only">Skoruba Duende IdentityServer</span>
+            </a>
+            <h1 class="text-2xl font-bold">Login</h1>
+                <p class="text-sm text-muted-foreground">
+                    Don't have an account?
+                    <a class="text-primary hover:underline font-medium" href="/Account/Register">Sign up</a>
+                </p>
+        </div>
+
+            <div id="tenant-status-banner"
+                 class="mb-4 hidden rounded-lg border border-border bg-muted/40 px-4 py-3 text-left"
+                 data-endpoint="/Account/TenantStatus"
+                 data-loading-title="TenantStatusLoadingTitle"
+                 data-loading-message="TenantStatusLoadingMessage"
+                 data-ready-prefix="TenantStatusReadyPrefix"
+                 data-missing-title="TenantStatusMissingTitle"
+                 data-error-title="TenantStatusErrorTitle"
+                 data-fallback-message="TenantStatusFallbackMessage"
+                 data-default-ready-message="TenantStatusReadyMessage">
+                <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center">
+                        <span id="tenant-status-indicator"
+                              class="inline-flex h-5 w-5 rounded-full border-2 border-current border-r-transparent text-muted-foreground animate-spin"></span>
+                    </div>
+                    <div id="tenant-status-logo"
+                         class="hidden h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+                        <img id="tenant-status-logo-image"
+                             alt="Tenant logo"
+                             class="h-full w-full object-cover" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div id="tenant-status-title" class="text-sm font-medium text-foreground"></div>
+                        <div id="tenant-status-message" class="mt-1 text-xs text-muted-foreground"></div>
+                    </div>
+                </div>
+            </div>
+            <script src="/js/login-tenant-status.js?v=ZkjlwfDelEOEyqMGl4k35etc3xKoXeTSuLcDTu630Vg"></script>
+
+        <div class="card">
+            <div class="card-content py-6">
+                    <form method="post" class="space-y-5" action="">
+                        <input type="hidden" id="ReturnUrl" name="ReturnUrl" value="/dashboard" />
+
+                        
+
+                        <div class="form-item">
+                            <label class="form-label" for="Username">
+                                <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="inline-block h-4 w-4 mr-1"
+  class="lucide lucide-user"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+  <circle cx="12" cy="7" r="4" />
+</svg>
+
+                                Username
+                            </label>
+                            <input id="Username" class="input" autofocus type="text" data-val="true" data-val-required="The Username field is required." name="Username" value="" />
+                        </div>
+
+                        <div class="form-item">
+                            <label class="form-label" for="Password">
+                                <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="inline-block h-4 w-4 mr-1"
+  class="lucide lucide-lock"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+</svg>
+
+                                Password
+                            </label>
+                            <input id="Password" type="password" class="input" autocomplete="off" data-val="true" data-val-required="The Password field is required." name="Password" />
+                        </div>
+
+
+                        <div id="tenant-login-submit" class="form-item">
+                            <button type="submit" name="button" value="login" class="btn-default w-full">
+                                <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="inline-block h-4 w-4 mr-2"
+  class="lucide lucide-log-in"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m10 17 5-5-5-5" />
+  <path d="M15 12H3" />
+  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+</svg>
+
+                                Login
+                            </button>
+                        </div>
+
+
+                    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8OLAY96VAWlLtlZoxzddvbAMo-7gWTUSUtWxpzGFO2_G9Yd8N3wGsgedIoT_bIPBl8I9frhgotJcpDeC8oakAk-qaYKTIDc25KVnW0mTOMzbkrS6g321lJuw47pyHStfKh7H4BCoYAdx9koCRWOSw44" /></form>
+
+
+            </div>
+        </div>
+
+        <div class="mt-4 text-center">
+            <p class="text-xs text-muted-foreground">
+                By signing in, you agree to our Terms of Service and Privacy Policy.
+            </p>
+        </div>
+    </div>
+</div>
+
+        </main>
+    </div>
+
+    <footer class="mt-auto border-t">
+        <div class="container px-4 py-6 md:px-6">
+            <div class="grid gap-6 md:grid-cols-3 md:items-center">
+                <div class="space-y-1">
+                    <div class="font-semibold">Skoruba Duende IdentityServer</div>
+                    <small class="text-muted-foreground">© 2026 - 
+
+3.0.0-preview.22</small>
+                </div>
+                <div></div>
+                <div class="flex justify-center md:justify-end">
+                        <div title="Request culture provider:" class="w-full md:w-auto">
+        <form id="selectLanguageForm" method="post" class="flex items-center gap-3" role="form" action="/Home/SetLanguage?returnUrl=~%2FAccount%2FLogin%3FreturnUrl%3D%252Fdashboard">
+            <label class="text-sm font-medium text-muted-foreground whitespace-nowrap" for="requestCulture_RequestCulture_UICulture_Name">
+                <!-- @license lucide-static v0.546.0 - ISC -->
+<svg class="inline-block h-4 w-4 mr-1"
+  class="lucide lucide-languages"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m5 8 6 6" />
+  <path d="m4 14 6-6 2-3" />
+  <path d="M2 5h12" />
+  <path d="M7 2h1" />
+  <path d="m22 22-5-10-5 10" />
+  <path d="M14 18h6" />
+</svg>
+
+                Language:
+            </label>
+            <select name="culture" id="cultureSelect" class="select min-w-[150px]" data-val="true" data-val-required="The Name field is required."><option selected="selected" value="en">English</option>
+<option value="fa">Persian</option>
+<option value="fr">French</option>
+<option value="ru">Russian</option>
+<option value="sv">Swedish</option>
+<option value="zh">Chinese</option>
+<option value="es">Spanish</option>
+<option value="da">Danish</option>
+<option value="de">German</option>
+<option value="nl">Dutch</option>
+<option value="fi">Finnish</option>
+<option value="pt">Portuguese</option>
+</select>
+        <input name="__RequestVerificationToken" type="hidden" value="CfDJ8OLAY96VAWlLtlZoxzddvbAMo-7gWTUSUtWxpzGFO2_G9Yd8N3wGsgedIoT_bIPBl8I9frhgotJcpDeC8oakAk-qaYKTIDc25KVnW0mTOMzbkrS6g321lJuw47pyHStfKh7H4BCoYAdx9koCRWOSw44" /></form>
+    </div>
+
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/js/layout.js?v=JnA_KFZSn1QmJfAnT7ylyrMRm5VvvlpNJVB4o6ZuiBE"></script>
+    <script src="/js/language.js?v=2amdbCTUXPjj0-42m4gr-z_A1IVfdc5Qu3GwaEbG35c"></script>
+    
+</body>
+
+</html>

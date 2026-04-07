@@ -11,8 +11,9 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Helpers
     {
         private readonly UserManager<TUser> _userManager;
         private readonly LoginResolutionPolicy _policy;
-
-        public UserResolver(UserManager<TUser> userManager, LoginConfiguration configuration)
+        public UserResolver(
+            UserManager<TUser> userManager,
+            LoginConfiguration configuration)
         {
             _userManager = userManager;
             _policy = configuration.ResolutionPolicy;

@@ -58,13 +58,6 @@ services:
       - 'AdminApiConfiguration__ApplicationName=Skoruba Duende IdentityServer Admin UI'
       - 'AdminApiConfiguration__ApiBaseUrl=https://admin-api.skoruba.local'
       - 'AdminApiConfiguration__IdentityServerBaseUrl=https://sts.skoruba.local'
-      - 'ConnectionStrings__ConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__PersistedGrantDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__AdminLogDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__AdminAuditLogDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__AdminConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__DataProtectionDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
       - 'IdentityServerData__Clients__0__ClientUri=https://admin.skoruba.local'
       - 'IdentityServerData__Clients__0__RedirectUris__0=https://admin.skoruba.local/signin-oidc'
       - 'IdentityServerData__Clients__0__FrontChannelLogoutUri=https://admin.skoruba.local/signin-oidc'
@@ -94,10 +87,6 @@ services:
     environment:
       - VIRTUAL_PORT=8080
       - VIRTUAL_HOST=sts.skoruba.local
-      - 'ConnectionStrings__ConfigurationDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__PersistedGrantDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
-      - 'ConnectionStrings__DataProtectionDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
       - 'AdminConfiguration__IdentityAdminBaseUrl=https://admin.skoruba.local'
       - 'IdentityServerOptions__IssuerUri=https://sts.skoruba.local'
       - IdentityServerOptions__KeyManagement__Enabled=true

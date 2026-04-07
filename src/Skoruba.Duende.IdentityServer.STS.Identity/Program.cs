@@ -47,17 +47,13 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                 .AddJsonFile("serilog.json", optional: true, reloadOnChange: true)
                 .AddJsonFile($"serilog.{environment}.json", optional: true, reloadOnChange: true);
 
-            // In development, user secrets should override appsettings values when present.
-            if (isDevelopment)
-            {
-                configurationBuilder.AddUserSecrets<Startup>(optional: true, reloadOnChange: true);
-            }
-
             var configuration = configurationBuilder.Build();
             configuration.AddAzureKeyVaultConfiguration(configurationBuilder);
 
             configurationBuilder.AddCommandLine(args);
             configurationBuilder.AddEnvironmentVariables();
+
+            configurationBuilder.AddUserSecrets<Startup>(optional: true, reloadOnChange: true);
 
             return configurationBuilder.Build();
         }
@@ -77,17 +73,14 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                         .AddJsonFile("serilog.json", optional: true, reloadOnChange: true)
                         .AddJsonFile($"serilog.{env.EnvironmentName}.json", optional: true, reloadOnChange: true);
 
-                    // In development, user secrets should override appsettings values when present.
-                    if (env.IsDevelopment())
-                    {
-                        configApp.AddUserSecrets<Startup>(optional: true, reloadOnChange: true);
-                    }
-
                     var configurationRoot = configApp.Build();
                     configurationRoot.AddAzureKeyVaultConfiguration(configApp);
 
                     configApp.AddEnvironmentVariables();
                     configApp.AddCommandLine(args);
+
+                    configApp.AddUserSecrets<Startup>(optional: true, reloadOnChange: true);
+
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

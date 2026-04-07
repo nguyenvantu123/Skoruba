@@ -95,17 +95,15 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                 .AddJsonFile("serilog.json", optional: true, reloadOnChange: true)
                 .AddJsonFile($"serilog.{environment}.json", optional: true, reloadOnChange: true);
 
-            if (isDevelopment)
-            {
-                configurationBuilder.AddUserSecrets<Startup>(true);
-            }
-
             var configuration = configurationBuilder.Build();
 
             configuration.AddAzureKeyVaultConfiguration(configurationBuilder);
 
             configurationBuilder.AddCommandLine(args);
             configurationBuilder.AddEnvironmentVariables();
+
+
+            configurationBuilder.AddUserSecrets<Startup>(true);
 
             return configurationBuilder.Build();
         }
@@ -128,15 +126,15 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                     configApp.AddJsonFile($"identityserverdata.{env.EnvironmentName}.json", optional: true,
                         reloadOnChange: true);
 
-                    if (env.IsDevelopment())
-                    {
-                        configApp.AddUserSecrets<Startup>(true);
-                    }
-
                     configurationRoot.AddAzureKeyVaultConfiguration(configApp);
 
                     configApp.AddEnvironmentVariables();
                     configApp.AddCommandLine(args);
+
+                    if (env.IsDevelopment())
+                    {
+                        configApp.AddUserSecrets<Startup>(true);
+                    }
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

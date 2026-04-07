@@ -10,6 +10,8 @@ builder.Configuration.ApplyDockerConfiguration();
 
 builder.Configuration.AddAzureKeyVaultConfiguration(builder.Configuration);
 
+builder.Configuration.AddUserSecrets<AdminConfiguration>(optional: true, reloadOnChange: true);
+
 builder.AddSerilog();
 
 builder.Services.AddDataProtectionDbContext(builder.Configuration);

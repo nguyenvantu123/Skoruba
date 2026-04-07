@@ -24,7 +24,6 @@ using Skoruba.Duende.IdentityServer.STS.Identity.Helpers;
 using Skoruba.Duende.IdentityServer.STS.Identity.Stores;
 using System;
 using System.Linq;
-using System.Security.Claims;
 using TenantInfrastructure.Abstractions;
 using TenantInfrastructure.Resolution;
 using TenantInfrastructure.Wiring;
@@ -224,22 +223,16 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
         {
             var configuration = serviceProvider.GetRequiredService<IConfiguration>();
             var tenantAccessor = serviceProvider.GetRequiredService<ITenantContextAccessor>();
-            var httpContextAccessor = serviceProvider.GetService<IHttpContextAccessor>();
 
             var tableConfiguration = new IdentityTableConfiguration();
             configuration.GetSection(nameof(IdentityTableConfiguration)).Bind(tableConfiguration);
 
-            if (tenantAccessor.Current != null || IsTenantPrincipal(httpContextAccessor?.HttpContext?.User))
+            if (tenantAccessor.Current != null)
             {
                 configuration.GetSection("TenantIdentityTableConfiguration").Bind(tableConfiguration);
             }
 
             return tableConfiguration;
-        }
-
-        private static bool IsTenantPrincipal(ClaimsPrincipal principal)
-        {
-            return !string.IsNullOrWhiteSpace(principal?.FindFirst(TenantClaimTypes.TenantKey)?.Value);
         }
 
         private static void AddConfiguredDbContext<TContext>(IServiceCollection services, DatabaseProviderType providerType, string connectionString, string migrationsAssembly, bool isDevelopment)

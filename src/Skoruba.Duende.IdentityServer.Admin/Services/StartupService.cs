@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using System.Collections;
 using System.Net.Http;
 using Serilog;
 using Skoruba.Duende.IdentityServer.Admin.Configuration;
@@ -210,6 +211,113 @@ public static class StartupService
                 options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.UseIfAvailable;
                 options.Events = new OpenIdConnectEvents
                 {
+                    OnRedirectToIdentityProvider = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC challenge redirect. Path={Path}, ReturnUrl={ReturnUrl}, IssuerAddress={IssuerAddress}, RedirectUri={RedirectUri}, Scope={Scope}, ResponseType={ResponseType}, ClientId={ClientId}, Prompt={Prompt}, ACR={Acr}, ExtraParams={ExtraParams}",
+                            context.Request.Path,
+                            context.Properties?.RedirectUri ?? "<none>",
+                            context.ProtocolMessage.IssuerAddress ?? "<none>",
+                            context.ProtocolMessage.RedirectUri ?? "<none>",
+                            context.ProtocolMessage.Scope ?? "<none>",
+                            context.ProtocolMessage.ResponseType ?? "<none>",
+                            context.ProtocolMessage.ClientId ?? "<none>",
+                            context.ProtocolMessage.Prompt ?? "<none>",
+                            context.ProtocolMessage.AcrValues ?? "<none>",
+                            DumpProperties(context.ProtocolMessage.Parameters));
+
+                        return Task.CompletedTask;
+                    },
+                    OnMessageReceived = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC callback message received. Method={Method}, Path={Path}, Query={Query}, Form={Form}, Headers={Headers}",
+                            context.Request.Method,
+                            context.Request.Path,
+                            Truncate(context.Request.QueryString.Value, 3000),
+                            DumpRequestForm(context.Request),
+                            DumpHeaders(context.Request.Headers));
+
+                        return Task.CompletedTask;
+                    },
+                    OnAuthorizationCodeReceived = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC authorization code received. Path={Path}, CodeLength={CodeLength}, State={State}, SessionState={SessionState}, IssuerAddress={IssuerAddress}",
+                            context.Request.Path,
+                            context.ProtocolMessage.Code?.Length ?? 0,
+                            Truncate(context.ProtocolMessage.State, 256),
+                            Truncate(context.ProtocolMessage.SessionState, 256),
+                            context.ProtocolMessage.IssuerAddress ?? "<none>");
+
+                        return Task.CompletedTask;
+                    },
+                    OnTokenResponseReceived = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC token response received. AccessTokenLength={AccessTokenLength}, IdTokenLength={IdTokenLength}, RefreshTokenLength={RefreshTokenLength}, TokenType={TokenType}, ExpiresIn={ExpiresIn}, Error={Error}, ErrorDescription={ErrorDescription}",
+                            context.TokenEndpointResponse?.AccessToken?.Length ?? 0,
+                            context.TokenEndpointResponse?.IdToken?.Length ?? 0,
+                            context.TokenEndpointResponse?.RefreshToken?.Length ?? 0,
+                            context.TokenEndpointResponse?.TokenType ?? "<none>",
+                            context.TokenEndpointResponse?.ExpiresIn ?? "<none>",
+                            context.TokenEndpointResponse?.Error ?? "<none>",
+                            Truncate(context.TokenEndpointResponse?.ErrorDescription, 512));
+
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC token validated. Subject={Subject}, Name={Name}, Idp={Idp}, TenantKey={TenantKey}, Claims={Claims}",
+                            context.Principal?.FindFirst("sub")?.Value ?? "<none>",
+                            context.Principal?.Identity?.Name ?? "<none>",
+                            context.Principal?.FindFirst("idp")?.Value ?? "<none>",
+                            context.Principal?.FindFirst("tenant_key")?.Value ?? "<none>",
+                            DumpClaims(context.Principal?.Claims));
+
+                        return Task.CompletedTask;
+                    },
+                    OnUserInformationReceived = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogInformation(
+                            "OIDC userinfo received. UserInfo={UserInfo}",
+                            Truncate(context.User.ToString(), 3000));
+
+                        return Task.CompletedTask;
+                    },
+                    OnAuthenticationFailed = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("OpenIdConnectTrace");
+
+                        logger.LogError(
+                            context.Exception,
+                            "OIDC authentication failed. Path={Path}, QueryString={QueryString}, Message={Message}",
+                            context.Request.Path,
+                            context.Request.QueryString.Value ?? "<none>",
+                            context.Exception.Message);
+
+                        return Task.CompletedTask;
+                    },
                     OnRemoteFailure = context =>
                     {
                         var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
@@ -217,15 +325,81 @@ public static class StartupService
 
                         logger.LogError(
                             context.Failure,
-                            "OpenIdConnect remote login failed. Path={Path}, QueryString={QueryString}, RedirectUri={RedirectUri}",
+                            "OpenIdConnect remote login failed. Path={Path}, QueryString={QueryString}, RedirectUri={RedirectUri}, FailureMessage={FailureMessage}, Properties={Properties}",
                             context.Request.Path,
                             context.Request.QueryString.Value ?? "<none>",
-                            context.Properties?.RedirectUri ?? "<none>");
+                            context.Properties?.RedirectUri ?? "<none>",
+                            context.Failure?.Message ?? "<none>",
+                            DumpAuthenticationProperties(context.Properties));
 
                         return Task.CompletedTask;
                     }
                 };
             });
+    }
+
+    private static string DumpRequestForm(HttpRequest request)
+    {
+        try
+        {
+            if (!request.HasFormContentType)
+            {
+                return "<none>";
+            }
+
+            return string.Join("; ", request.Form.Select(x => $"{x.Key}={Truncate(string.Join(",", x.Value), 256)}"));
+        }
+        catch (Exception ex)
+        {
+            return $"<unavailable:{ex.GetType().Name}>";
+        }
+    }
+
+    private static string DumpHeaders(IHeaderDictionary headers)
+    {
+        return string.Join("; ", headers.Select(h => $"{h.Key}={Truncate(string.Join(",", h.Value), 256)}"));
+    }
+
+    private static string DumpClaims(IEnumerable<System.Security.Claims.Claim>? claims)
+    {
+        if (claims == null)
+        {
+            return "<none>";
+        }
+
+        return string.Join("; ", claims.Select(c => $"{c.Type}={Truncate(c.Value, 256)}"));
+    }
+
+    private static string DumpAuthenticationProperties(AuthenticationProperties? properties)
+    {
+        if (properties == null)
+        {
+            return "<none>";
+        }
+
+        var items = properties.Items?.Select(x => $"{x.Key}={Truncate(x.Value, 256)}") ?? Enumerable.Empty<string>();
+        var parameters = properties.Parameters?.Select(x => $"{x.Key}={Truncate(x.Value?.ToString(), 256)}") ?? Enumerable.Empty<string>();
+        return string.Join("; ", items.Concat(parameters));
+    }
+
+    private static string DumpProperties(IDictionary<string, string?>? values)
+    {
+        if (values == null)
+        {
+            return "<none>";
+        }
+
+        return string.Join("; ", values.Select(x => $"{x.Key}={Truncate(x.Value, 256)}"));
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value ?? "<none>";
+        }
+
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
     }
 
     private static string NormalizeMySqlConnectionStringForDevelopment(string connectionString, bool isDevelopment)
