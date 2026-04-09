@@ -15,6 +15,18 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Configuration
             public string ClientId { get; set; } = string.Empty;
 
             public List<string> BaseUrls { get; set; } = new();
+
+            public List<string> RedirectUris { get; set; } = new();
+
+            public List<string> PostLogoutRedirectUris { get; set; } = new();
+
+            public List<string> AllowedCorsOrigins { get; set; } = new();
+
+            public bool EnableLocalLogin { get; set; } = true;
+
+            public bool ClearIdentityProviderRestrictions { get; set; } = false;
+
+            public bool ResetUserSsoLifetime { get; set; } = false;
         }
     }
 }

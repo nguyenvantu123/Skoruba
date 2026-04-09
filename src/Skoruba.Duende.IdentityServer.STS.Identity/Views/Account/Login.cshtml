@@ -30,7 +30,9 @@
         {
             <div id="tenant-status-banner"
                  class="mb-4 hidden rounded-lg border border-border bg-muted/40 px-4 py-3 text-left"
-                 data-endpoint="@Url.Action("TenantStatus", "Account")"
+                 data-endpoint="@(string.IsNullOrWhiteSpace(Model.TenantKey)
+                     ? Url.Action("TenantStatus", "Account")
+                     : Url.Action("TenantStatus", "Account", new { tenant = Model.TenantKey }))"
                  data-loading-title="@Localizer["TenantStatusLoadingTitle"]"
                  data-loading-message="@Localizer["TenantStatusLoadingMessage"]"
                  data-ready-prefix="@Localizer["TenantStatusReadyPrefix"]"
@@ -80,8 +82,24 @@
                                 <lucideicon name="lock" class="inline-block h-4 w-4 mr-1" />
                                 @Localizer["Password"]
                             </label>
-                            <input id="Password" type="password" class="input" asp-for="Password" autocomplete="off"
-                                tw-validation />
+                            <div class="relative">
+                                <input id="Password" type="password" class="input pr-12" asp-for="Password" autocomplete="off"
+                                    tw-validation />
+                                <button type="button"
+                                        id="toggle-password-visibility"
+                                        class="btn-ghost btn-icon absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2"
+                                        aria-controls="Password"
+                                        aria-label="Show password"
+                                        aria-pressed="false">
+                                    <span id="password-hidden-icon">
+                                        <lucideicon name="eye" class="h-4 w-4" />
+                                    </span>
+                                    <span id="password-visible-icon" class="hidden">
+                                        <lucideicon name="eye-off" class="h-4 w-4" />
+                                    </span>
+                                    <span id="password-toggle-text" class="sr-only">Show password</span>
+                                </button>
+                            </div>
                         </div>
 
                         @if (Model.AllowRememberLogin && !Model.HasTenantContext)
@@ -182,3 +200,27 @@
         </div>
     </div>
 </div>
+
+<script>
+    (() => {
+        const passwordInput = document.getElementById('Password');
+        const toggleButton = document.getElementById('toggle-password-visibility');
+        const hiddenIcon = document.getElementById('password-hidden-icon');
+        const visibleIcon = document.getElementById('password-visible-icon');
+        const toggleText = document.getElementById('password-toggle-text');
+
+        if (!passwordInput || !toggleButton || !hiddenIcon || !visibleIcon || !toggleText) {
+            return;
+        }
+
+        toggleButton.addEventListener('click', () => {
+            const isHidden = passwordInput.type === 'password';
+            passwordInput.type = isHidden ? 'text' : 'password';
+            toggleButton.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+            toggleButton.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+            toggleText.textContent = isHidden ? 'Hide password' : 'Show password';
+            hiddenIcon.classList.toggle('hidden', isHidden);
+            visibleIcon.classList.toggle('hidden', !isHidden);
+        });
+    })();
+</script>

@@ -17,19 +17,24 @@ public sealed class TenantUserValidator : ITenantUserValidator
 
     public void EnsureBranchMatchesTenant(string branchCodeFromOkta)
     {
-        var tenant = _accessor.Current?.TenantKey
+        var tenant = Normalize(_accessor.Current?.TenantKey)
             ?? throw new InvalidOperationException("Tenant not resolved");
 
-        if (!string.Equals(branchCodeFromOkta, tenant, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Normalize(branchCodeFromOkta), tenant, StringComparison.OrdinalIgnoreCase))
             throw new SecurityException("Branch/Tenant mismatch.");
     }
 
     public void EnsureUserBelongsToTenant(string userTenantKey)
     {
-        var tenant = _accessor.Current?.TenantKey
+        var tenant = Normalize(_accessor.Current?.TenantKey)
             ?? throw new InvalidOperationException("Tenant not resolved");
 
-        if (!string.Equals(userTenantKey, tenant, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Normalize(userTenantKey), tenant, StringComparison.OrdinalIgnoreCase))
             throw new SecurityException("User belongs to another tenant.");
+    }
+
+    private static string? Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

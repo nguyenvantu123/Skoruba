@@ -1,7 +1,8 @@
-﻿using Duende.IdentityServer.EntityFramework.Mappers;
+using Duende.IdentityServer.EntityFramework.Mappers;
 using Duende.IdentityServer.Models;
 using Duende.IdentityServer.Stores;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.DbContexts;
 using System;
 using System.Collections.Generic;
@@ -12,13 +13,14 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Stores;
 
 public sealed class MySqlSafeResourceStore : IResourceStore
 {
-    private readonly IResourceStore _inner;
     private readonly IdentityServerConfigurationDbContext _db;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan ResourceCacheDuration = TimeSpan.FromMinutes(5);
 
-    public MySqlSafeResourceStore(IResourceStore inner, IdentityServerConfigurationDbContext db)
+    public MySqlSafeResourceStore(IResourceStore inner, IdentityServerConfigurationDbContext db, IMemoryCache cache)
     {
-        _inner = inner;
         _db = db;
+        _cache = cache;
     }
 
     private static string[] Normalize(IEnumerable<string> names)
@@ -38,14 +40,20 @@ public sealed class MySqlSafeResourceStore : IResourceStore
 
         foreach (var name in names)
         {
-            var entities = await _db.IdentityResources
-                .AsNoTracking()
-                .Where(x => x.Enabled && x.Name == name)
-                .Include(x => x.UserClaims)
-                .Include(x => x.Properties)
-                .ToListAsync();
+            var resources = await _cache.GetOrCreateAsync(GetCacheKey("identity-resource", name), async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = ResourceCacheDuration;
 
-            result.AddRange(entities.Select(e => e.ToModel()));
+                return await _db.IdentityResources
+                    .AsNoTracking()
+                    .Where(x => x.Enabled && x.Name == name)
+                    .Include(x => x.UserClaims)
+                    .Include(x => x.Properties)
+                    .Select(e => e.ToModel())
+                    .ToListAsync();
+            });
+
+            result.AddRange(resources ?? Enumerable.Empty<IdentityResource>());
         }
 
         return result
@@ -63,14 +71,20 @@ public sealed class MySqlSafeResourceStore : IResourceStore
 
         foreach (var name in names)
         {
-            var entities = await _db.ApiScopes
-                .AsNoTracking()
-                .Where(x => x.Enabled && x.Name == name)
-                .Include(x => x.UserClaims)
-                .Include(x => x.Properties)
-                .ToListAsync();
+            var scopes = await _cache.GetOrCreateAsync(GetCacheKey("api-scope", name), async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = ResourceCacheDuration;
 
-            result.AddRange(entities.Select(e => e.ToModel()));
+                return await _db.ApiScopes
+                    .AsNoTracking()
+                    .Where(x => x.Enabled && x.Name == name)
+                    .Include(x => x.UserClaims)
+                    .Include(x => x.Properties)
+                    .Select(e => e.ToModel())
+                    .ToListAsync();
+            });
+
+            result.AddRange(scopes ?? Enumerable.Empty<ApiScope>());
         }
 
         return result
@@ -88,18 +102,22 @@ public sealed class MySqlSafeResourceStore : IResourceStore
 
         foreach (var name in names)
         {
-            var entities = await _db.ApiResources
-                .AsNoTracking()
-                .Where(r => r.Enabled && r.Name == name)
-                .Include(r => r.Secrets)
-                .Include(r => r.Properties)
-                .Include(r => r.UserClaims)
-                // Duende entity có navigation Scopes, nhưng Skoruba cũng có bảng ApiResourceScopes.
-                // Include cả 2 để chắc chắn ToModel có đủ scopes.
-                .Include(r => r.Scopes)
-                .ToListAsync();
+            var resources = await _cache.GetOrCreateAsync(GetCacheKey("api-resource-by-name", name), async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = ResourceCacheDuration;
 
-            result.AddRange(entities.Select(e => e.ToModel()));
+                return await _db.ApiResources
+                    .AsNoTracking()
+                    .Where(r => r.Enabled && r.Name == name)
+                    .Include(r => r.Secrets)
+                    .Include(r => r.Properties)
+                    .Include(r => r.UserClaims)
+                    .Include(r => r.Scopes)
+                    .Select(e => e.ToModel())
+                    .ToListAsync();
+            });
+
+            result.AddRange(resources ?? Enumerable.Empty<ApiResource>());
         }
 
         return result
@@ -117,18 +135,22 @@ public sealed class MySqlSafeResourceStore : IResourceStore
 
         foreach (var scopeName in names)
         {
-            // ✅ Tránh IN (@names): query theo từng scopeName
-            // ✅ Dùng bảng join ApiResourceScopes của Skoruba để match scope
-            var entities = await _db.ApiResources
-                .AsNoTracking()
-                .Where(r => r.Enabled && _db.ApiResourceScopes.Any(j => j.ApiResourceId == r.Id && j.Scope == scopeName))
-                .Include(r => r.Secrets)
-                .Include(r => r.Properties)
-                .Include(r => r.UserClaims)
-                .Include(r => r.Scopes)
-                .ToListAsync();
+            var resources = await _cache.GetOrCreateAsync(GetCacheKey("api-resource-by-scope", scopeName), async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = ResourceCacheDuration;
 
-            result.AddRange(entities.Select(e => e.ToModel()));
+                return await _db.ApiResources
+                    .AsNoTracking()
+                    .Where(r => r.Enabled && _db.ApiResourceScopes.Any(j => j.ApiResourceId == r.Id && j.Scope == scopeName))
+                    .Include(r => r.Secrets)
+                    .Include(r => r.Properties)
+                    .Include(r => r.UserClaims)
+                    .Include(r => r.Scopes)
+                    .Select(e => e.ToModel())
+                    .ToListAsync();
+            });
+
+            result.AddRange(resources ?? Enumerable.Empty<ApiResource>());
         }
 
         return result
@@ -139,34 +161,42 @@ public sealed class MySqlSafeResourceStore : IResourceStore
 
     public async Task<Resources> GetAllResourcesAsync()
     {
-        // Tránh mọi Contains(list) => load enabled từng loại
-        var identityEntities = await _db.IdentityResources
-            .AsNoTracking()
-            .Where(x => x.Enabled)
-            .Include(x => x.UserClaims)
-            .Include(x => x.Properties)
-            .ToListAsync();
+        var resources = await _cache.GetOrCreateAsync("identityserver:resources:all", async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = ResourceCacheDuration;
 
-        var apiScopeEntities = await _db.ApiScopes
-            .AsNoTracking()
-            .Where(x => x.Enabled)
-            .Include(x => x.UserClaims)
-            .Include(x => x.Properties)
-            .ToListAsync();
+            var identityResources = await _db.IdentityResources
+                .AsNoTracking()
+                .Where(x => x.Enabled)
+                .Include(x => x.UserClaims)
+                .Include(x => x.Properties)
+                .Select(e => e.ToModel())
+                .ToArrayAsync();
 
-        var apiResourceEntities = await _db.ApiResources
-            .AsNoTracking()
-            .Where(x => x.Enabled)
-            .Include(x => x.Secrets)
-            .Include(x => x.Properties)
-            .Include(x => x.UserClaims)
-            .Include(x => x.Scopes)
-            .ToListAsync();
+            var apiScopes = await _db.ApiScopes
+                .AsNoTracking()
+                .Where(x => x.Enabled)
+                .Include(x => x.UserClaims)
+                .Include(x => x.Properties)
+                .Select(e => e.ToModel())
+                .ToArrayAsync();
 
-        var identityResources = identityEntities.Select(e => e.ToModel()).ToArray();
-        var apiScopes = apiScopeEntities.Select(e => e.ToModel()).ToArray();
-        var apiResources = apiResourceEntities.Select(e => e.ToModel()).ToArray();
+            var apiResources = await _db.ApiResources
+                .AsNoTracking()
+                .Where(x => x.Enabled)
+                .Include(x => x.Secrets)
+                .Include(x => x.Properties)
+                .Include(x => x.UserClaims)
+                .Include(x => x.Scopes)
+                .Select(e => e.ToModel())
+                .ToArrayAsync();
 
-        return new Resources(identityResources, apiResources, apiScopes);
+            return new Resources(identityResources, apiResources, apiScopes);
+        });
+
+        return resources ?? new Resources(Array.Empty<IdentityResource>(), Array.Empty<ApiResource>(), Array.Empty<ApiScope>());
     }
+
+    private static string GetCacheKey(string prefix, string value)
+        => $"identityserver:{prefix}:{value.Trim().ToLowerInvariant()}";
 }

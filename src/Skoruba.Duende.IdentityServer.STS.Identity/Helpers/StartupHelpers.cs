@@ -492,7 +492,9 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Helpers
                     options.DynamicProviders.SignInScheme = IdentityConstants.ExternalScheme;
                     options.DynamicProviders.SignOutScheme = IdentityConstants.ApplicationScheme;
                 })
+                .AddInMemoryCaching()
                 .AddConfigurationStore<TConfigurationDbContext>()
+                .AddConfigurationStoreCache()
                 .AddOperationalStore<TPersistedGrantDbContext>()
                 .AddAspNetIdentity<TUserIdentity>()
                 .AddProfileService<TenantProfileService>();

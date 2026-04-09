@@ -16,6 +16,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.ViewModels.Account
         public bool AllowRememberLogin { get; set; } = true;
         public bool EnableLocalLogin { get; set; } = true;
         public bool HasTenantContext { get; set; }
+        public string? TenantKey { get; set; }
         public LoginResolutionPolicy LoginResolutionPolicy { get; set; } = LoginResolutionPolicy.Username;
 
         public IEnumerable<ExternalProvider> ExternalProviders { get; set; } = Enumerable.Empty<ExternalProvider>();

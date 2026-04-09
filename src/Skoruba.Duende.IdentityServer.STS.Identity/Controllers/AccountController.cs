@@ -13,11 +13,13 @@ using Duende.IdentityServer.Stores;
 using IdentityModel;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.Entities.Identity;
 using Skoruba.Duende.IdentityServer.Shared.Configuration.Configuration.Identity;
 using Skoruba.Duende.IdentityServer.STS.Identity.Configuration;
@@ -112,8 +114,66 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Login(string returnUrl)
         {
-            // build a model so we know what to show on the login page
-            var vm = await BuildLoginViewModelAsync(returnUrl);
+            _logger.LogInformation(
+                "Login page requested. TenantKey={TenantKey}, ReturnUrl={ReturnUrl}, IsAuthenticated={IsAuthenticated}",
+                _tenantAccessor.Current?.TenantKey ?? "<none>",
+                TruncateForLog(returnUrl),
+                User?.Identity?.IsAuthenticated ?? false);
+
+            if (User?.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(returnUrl))
+            {
+                AuthorizationRequest context = null;
+                try
+                {
+                    context = await _interaction.GetAuthorizationContextAsync(returnUrl);
+                }
+                catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+                {
+                    _logger.LogInformation(
+                        "Authenticated login-page request was canceled while resolving authorization context. ReturnUrl={ReturnUrl}",
+                        TruncateForLog(returnUrl));
+                    return new EmptyResult();
+                }
+
+                if (context?.IsNativeClient() == true)
+                {
+                    if (RequiresFreshLogin(returnUrl))
+                    {
+                        _logger.LogInformation(
+                            "Authenticated native client reached the login page with a fresh-login requirement. Rendering the login UI instead of resuming automatically. ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                            context.Client.ClientId,
+                            TruncateForLog(returnUrl));
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Authenticated native client reached the login page with a return URL. Resuming the native authorization flow. ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                            context.Client.ClientId,
+                            TruncateForLog(returnUrl));
+                        return this.LoadingPage("Redirect", returnUrl);
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Authenticated user reached the login page with a return URL. Rendering the login UI instead of auto-resuming to avoid callback/login redirect loops. ReturnUrl={ReturnUrl}",
+                        TruncateForLog(returnUrl));
+                }
+            }
+
+            LoginViewModel vm;
+            try
+            {
+                // build a model so we know what to show on the login page
+                vm = await BuildLoginViewModelAsync(returnUrl);
+            }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                _logger.LogInformation(
+                    "Login page request was canceled while building the login view model. ReturnUrl={ReturnUrl}",
+                    TruncateForLog(returnUrl));
+                return new EmptyResult();
+            }
 
             if (vm.EnableLocalLogin == false && vm.ExternalProviders.Count() == 1)
             {
@@ -179,6 +239,16 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
             // check if we are in the context of an authorization request
             var context = await _interaction.GetAuthorizationContextAsync(model.ReturnUrl);
 
+            _logger.LogInformation(
+                "Processing login request. Button={Button}, Username={Username}, TenantKey={TenantKey}, HasAuthorizationContext={HasAuthorizationContext}, ClientId={ClientId}, RedirectUri={RedirectUri}, ReturnUrl={ReturnUrl}",
+                button,
+                model.Username,
+                _tenantAccessor.Current?.TenantKey ?? "<none>",
+                context != null,
+                context?.Client?.ClientId ?? "<none>",
+                TruncateForLog(context?.RedirectUri),
+                TruncateForLog(model.ReturnUrl));
+
             // the user clicked the "cancel" button
             if (button != "login")
             {
@@ -194,13 +264,22 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                     {
                         // The client is native, so this change in how to
                         // return the response is for better UX for the end user.
+                        _logger.LogInformation(
+                            "Login request cancelled for native client. ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                            context.Client.ClientId,
+                            TruncateForLog(model.ReturnUrl));
                         return this.LoadingPage("Redirect", model.ReturnUrl);
                     }
 
+                    _logger.LogInformation(
+                        "Login request cancelled. Redirecting to authorization return URL. ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                        context.Client.ClientId,
+                        TruncateForLog(model.ReturnUrl));
                     return Redirect(model.ReturnUrl);
                 }
 
                 // since we don't have a valid context, then we just go back to the home page
+                _logger.LogInformation("Login request cancelled without authorization context. Redirecting to home.");
                 return Redirect("~/");
             }
 
@@ -213,12 +292,31 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                     {
                         await EnsureLoginAllowedAsync(user);
                         await EnsureClientAllowedAsync(user, context);
+                        await EnsureLocalLoginAllowedAsync(context);
                     }
                     catch (SecurityException ex)
                     {
+                        var userTenantKey = GetStringProperty(user, "TenantKey");
+                        var userBranchCode = GetStringProperty(user, "BranchCode");
+
+                        _logger.LogWarning(
+                            ex,
+                            "Login request blocked. Username={Username}, TenantKey={TenantKey}, UserTenantKey={UserTenantKey}, UserBranchCode={UserBranchCode}, ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                            model.Username,
+                            _tenantAccessor.Current?.TenantKey ?? "<none>",
+                            userTenantKey ?? "<none>",
+                            userBranchCode ?? "<none>",
+                            context?.Client?.ClientId ?? "<none>",
+                            TruncateForLog(model.ReturnUrl));
+
                         var redirectResult = await TryTenantAdminRedirectViewAsync(user, context);
                         if (redirectResult != null)
                         {
+                            _logger.LogInformation(
+                                "Tenant admin redirect view returned instead of login failure. Username={Username}, ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                                model.Username,
+                                context?.Client?.ClientId ?? "<none>",
+                                TruncateForLog(model.ReturnUrl));
                             return redirectResult;
                         }
 
@@ -228,41 +326,114 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                     }
 
                     var result = await _signInManager.PasswordSignInAsync(user.UserName, model.Password, model.RememberLogin, lockoutOnFailure: true);
+                    _logger.LogInformation(
+                        "Password sign-in evaluated. Username={Username}, TenantKey={TenantKey}, Succeeded={Succeeded}, RequiresTwoFactor={RequiresTwoFactor}, IsLockedOut={IsLockedOut}, HasAuthorizationContext={HasAuthorizationContext}, ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                        user.UserName,
+                        _tenantAccessor.Current?.TenantKey ?? "<none>",
+                        result.Succeeded,
+                        result.RequiresTwoFactor,
+                        result.IsLockedOut,
+                        context != null,
+                        context?.Client?.ClientId ?? "<none>",
+                        TruncateForLog(model.ReturnUrl));
+
                     if (result.Succeeded)
                     {
                         await _events.RaiseAsync(new UserLoginSuccessEvent(user.UserName, user.Id.ToString(), user.UserName));
 
                         if (context != null)
                         {
+                            var continuationReturnUrl = PrepareSuccessfulLoginReturnUrl(model.ReturnUrl);
+                            if (!string.Equals(continuationReturnUrl, model.ReturnUrl, StringComparison.Ordinal))
+                            {
+                                _logger.LogInformation(
+                                    "Removed fresh-login parameters from the authorization return URL after successful interactive login. ClientId={ClientId}, OriginalReturnUrl={OriginalReturnUrl}, ContinuationReturnUrl={ContinuationReturnUrl}",
+                                    context.Client.ClientId,
+                                    TruncateForLog(model.ReturnUrl),
+                                    TruncateForLog(continuationReturnUrl));
+                            }
+
                             if (context.IsNativeClient())
                             {
                                 // The client is native, so this change in how to
                                 // return the response is for better UX for the end user.
-                                return this.LoadingPage("Redirect", model.ReturnUrl);
+                                _logger.LogInformation(
+                                    "Password login succeeded for native client. ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                                    context.Client.ClientId,
+                                    TruncateForLog(continuationReturnUrl));
+                                return this.LoadingPage("Redirect", continuationReturnUrl);
                             }
 
                             // we can trust model.ReturnUrl since GetAuthorizationContextAsync returned non-null
-                            return Redirect(model.ReturnUrl);
+                            _logger.LogInformation(
+                                "Password login succeeded. Redirecting to authorization callback. ClientId={ClientId}, RedirectUri={RedirectUri}, ReturnUrl={ReturnUrl}",
+                                context.Client.ClientId,
+                                TruncateForLog(context.RedirectUri),
+                                TruncateForLog(continuationReturnUrl));
+                            return Redirect(continuationReturnUrl);
                         }
+
+                        _logger.LogInformation(
+                            "Password login succeeded without authorization context. Resolving local redirect. ReturnUrl={ReturnUrl}",
+                            TruncateForLog(model.ReturnUrl));
                         return await RedirectToLocalAsync(model.ReturnUrl);
                     }
 
                     if (result.RequiresTwoFactor)
                     {
+                        _logger.LogInformation(
+                            "Password login requires two-factor. Username={Username}, ReturnUrl={ReturnUrl}",
+                            user.UserName,
+                            TruncateForLog(model.ReturnUrl));
                         return RedirectToAction(nameof(LoginWith2fa), new { model.ReturnUrl, RememberMe = model.RememberLogin });
                     }
 
                     if (result.IsLockedOut)
                     {
+                        _logger.LogWarning("Password login rejected because user is locked out. Username={Username}", user.UserName);
                         return View("Lockout");
                     }
                 }
                 await _events.RaiseAsync(new UserLoginFailureEvent(model.Username, "invalid credentials", clientId: context?.Client.ClientId));
+                _logger.LogWarning(
+                    "Password login failed due to invalid credentials or missing user. Username={Username}, TenantKey={TenantKey}, ClientId={ClientId}, ReturnUrl={ReturnUrl}",
+                    model.Username,
+                    _tenantAccessor.Current?.TenantKey ?? "<none>",
+                    context?.Client?.ClientId ?? "<none>",
+                    TruncateForLog(model.ReturnUrl));
                 ModelState.AddModelError(string.Empty, AccountOptions.InvalidCredentialsErrorMessage);
             }
 
+            if (!ModelState.IsValid)
+            {
+                var modelErrors = string.Join(
+                    "; ",
+                    ModelState.Values
+                        .SelectMany(x => x.Errors)
+                        .Select(x => string.IsNullOrWhiteSpace(x.ErrorMessage) ? x.Exception?.Message : x.ErrorMessage)
+                        .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+                _logger.LogWarning(
+                    "Login request returned to view due to validation errors. Username={Username}, TenantKey={TenantKey}, ClientId={ClientId}, Errors={Errors}",
+                    model.Username,
+                    _tenantAccessor.Current?.TenantKey ?? "<none>",
+                    context?.Client?.ClientId ?? "<none>",
+                    TruncateForLog(modelErrors, 512));
+            }
+
             // something went wrong, show form with error
-            var vm = await BuildLoginViewModelAsync(model);
+            LoginViewModel vm;
+            try
+            {
+                vm = await BuildLoginViewModelAsync(model);
+            }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                _logger.LogInformation(
+                    "Login POST request was canceled while rebuilding the login view model. ReturnUrl={ReturnUrl}",
+                    TruncateForLog(model.ReturnUrl));
+                return new EmptyResult();
+            }
             return View(vm);
         }
 
@@ -824,6 +995,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
         {
             if (Url.IsLocalUrl(returnUrl))
             {
+                _logger.LogInformation("RedirectToLocal resolved a local URL. ReturnUrl={ReturnUrl}", TruncateForLog(returnUrl));
                 return Redirect(returnUrl);
             }
 
@@ -831,14 +1003,28 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
             var tenantRedirect = await ResolveTenantRedirectUrlAsync(context?.Client);
             if (TryGetValidatedTenantReturnUrl(returnUrl, tenantRedirect, out var validatedReturnUrl))
             {
+                _logger.LogInformation(
+                    "RedirectToLocal validated tenant callback URL. ClientId={ClientId}, RequestedReturnUrl={RequestedReturnUrl}, TenantRedirectUrl={TenantRedirectUrl}",
+                    context?.Client?.ClientId ?? "<none>",
+                    TruncateForLog(returnUrl),
+                    TruncateForLog(tenantRedirect));
                 return Redirect(validatedReturnUrl);
             }
 
             if (!string.IsNullOrWhiteSpace(tenantRedirect))
             {
+                _logger.LogInformation(
+                    "RedirectToLocal fell back to tenant redirect URL. ClientId={ClientId}, TenantRedirectUrl={TenantRedirectUrl}, RequestedReturnUrl={RequestedReturnUrl}",
+                    context?.Client?.ClientId ?? "<none>",
+                    TruncateForLog(tenantRedirect),
+                    TruncateForLog(returnUrl));
                 return Redirect(tenantRedirect);
             }
 
+            _logger.LogWarning(
+                "RedirectToLocal fell back to home because no valid return URL was resolved. ClientId={ClientId}, RequestedReturnUrl={RequestedReturnUrl}",
+                context?.Client?.ClientId ?? "<none>",
+                TruncateForLog(returnUrl));
             return RedirectToAction(nameof(HomeController.Index), "Home");
         }
 
@@ -889,6 +1075,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
 
             return path.EndsWith("/", StringComparison.Ordinal) ? path : $"{path}/";
         }
+
         private async Task<string?> ResolveTenantRedirectUrlAsync(Client? client)
         {
             var tenantKey = _tenantAccessor.Current?.TenantKey;
@@ -934,6 +1121,21 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
         private async Task<LoginViewModel> BuildLoginViewModelAsync(string returnUrl)
         {
             var context = await _interaction.GetAuthorizationContextAsync(returnUrl);
+            var tenantKey = _tenantAccessor.Current?.TenantKey;
+
+            _logger.LogInformation(
+                "Resolved login authorization context. Scheme={Scheme}, Host={Host}, Path={Path}, ReturnUrl={ReturnUrl}, HasContext={HasContext}, ClientId={ClientId}, RedirectUri={RedirectUri}, IdentityProvider={IdentityProvider}, LoginHint={LoginHint}, IsAuthenticated={IsAuthenticated}",
+                Request.Scheme,
+                Request.Host.Value,
+                Request.Path.Value ?? "<none>",
+                TruncateForLog(returnUrl),
+                context != null,
+                context?.Client?.ClientId ?? "<none>",
+                TruncateForLog(context?.RedirectUri),
+                context?.IdP ?? "<none>",
+                context?.LoginHint ?? "<none>",
+                User?.Identity?.IsAuthenticated ?? false);
+
             if (context?.IdP != null && await _schemeProvider.GetSchemeAsync(context.IdP) != null)
             {
                 var local = context.IdP == IdentityServerConstants.LocalIdentityProvider;
@@ -942,7 +1144,8 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                 var vm = new LoginViewModel
                 {
                     EnableLocalLogin = local,
-                    HasTenantContext = _tenantAccessor.Current != null,
+                    HasTenantContext = tenantKey != null,
+                    TenantKey = tenantKey,
                     ReturnUrl = returnUrl,
                     Username = context?.LoginHint,
                 };
@@ -982,10 +1185,25 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                 if (client != null)
                 {
                     allowLocal = client.EnableLocalLogin;
+                    var identityProviderRestrictions = client.IdentityProviderRestrictions?
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray() ?? Array.Empty<string>();
 
-                    if (client.IdentityProviderRestrictions != null && client.IdentityProviderRestrictions.Any())
+                    if (identityProviderRestrictions.Length > 0)
                     {
-                        providers = providers.Where(provider => client.IdentityProviderRestrictions.Contains(provider.AuthenticationScheme)).ToList();
+                        allowLocal = allowLocal &&
+                                     identityProviderRestrictions.Contains(IdentityServerConstants.LocalIdentityProvider, StringComparer.OrdinalIgnoreCase);
+                        providers = providers
+                            .Where(provider => identityProviderRestrictions.Contains(provider.AuthenticationScheme, StringComparer.OrdinalIgnoreCase))
+                            .ToList();
+
+                        _logger.LogInformation(
+                            "Applied client identity provider restrictions on the login page. ClientId={ClientId}, EnableLocalLogin={EnableLocalLogin}, EffectiveLocalLogin={EffectiveLocalLogin}, IdentityProviderRestrictions={IdentityProviderRestrictions}",
+                            client.ClientId,
+                            client.EnableLocalLogin,
+                            allowLocal,
+                            string.Join(", ", identityProviderRestrictions));
                     }
                 }
             }
@@ -994,7 +1212,8 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
             {
                 AllowRememberLogin = AccountOptions.AllowRememberLogin,
                 EnableLocalLogin = allowLocal && AccountOptions.AllowLocalLogin,
-                HasTenantContext = _tenantAccessor.Current != null,
+                HasTenantContext = tenantKey != null,
+                TenantKey = tenantKey,
                 ReturnUrl = returnUrl,
                 Username = context?.LoginHint,
                 ExternalProviders = providers.ToArray()
@@ -1095,10 +1314,74 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
             if (adminAccess.IsSuperAdmin && !_adminConfiguration.AllowSuperAdminOnTenantHost)
                 throw new SecurityException("Super admin cannot login on tenant host.");
 
-            if (!adminAccess.IsSuperAdmin && user is UserIdentity tenantUser)
+            if (!adminAccess.IsSuperAdmin)
             {
-                _tenantUserValidator.EnsureUserBelongsToTenant(tenantUser.TenantKey);
+                await TryRepairTenantBindingAsync(user, tenant.TenantKey);
+                _tenantUserValidator.EnsureUserBelongsToTenant(GetStringProperty(user, "TenantKey") ?? string.Empty);
             }
+        }
+
+        private async Task TryRepairTenantBindingAsync(TUser user, string requestedTenantKey)
+        {
+            var normalizedRequestedTenantKey = NormalizeTenantKey(requestedTenantKey);
+            if (normalizedRequestedTenantKey == null)
+            {
+                return;
+            }
+
+            var currentTenantKey = NormalizeTenantKey(GetStringProperty(user, "TenantKey"));
+            if (string.Equals(currentTenantKey, normalizedRequestedTenantKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var branchCode = NormalizeTenantKey(GetStringProperty(user, "BranchCode"));
+            string? tenantClaim = null;
+
+            if (!string.Equals(branchCode, normalizedRequestedTenantKey, StringComparison.OrdinalIgnoreCase))
+            {
+                var claims = await _userManager.GetClaimsAsync(user);
+                tenantClaim = NormalizeTenantKey(claims.FirstOrDefault(x => x.Type == TenantClaimTypes.TenantKey)?.Value);
+            }
+
+            var canRepair =
+                string.Equals(branchCode, normalizedRequestedTenantKey, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(tenantClaim, normalizedRequestedTenantKey, StringComparison.OrdinalIgnoreCase);
+
+            if (!canRepair)
+            {
+                return;
+            }
+
+            var tenantKeyProperty = typeof(TUser).GetProperty("TenantKey");
+            if (tenantKeyProperty == null || !tenantKeyProperty.CanWrite)
+            {
+                return;
+            }
+
+            tenantKeyProperty.SetValue(user, normalizedRequestedTenantKey);
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (updateResult.Succeeded)
+            {
+                _logger.LogInformation(
+                    "Repaired tenant binding for login user. UserId={UserId}, UserName={UserName}, PreviousTenantKey={PreviousTenantKey}, RequestedTenantKey={RequestedTenantKey}, BranchCode={BranchCode}, ClaimTenantKey={ClaimTenantKey}",
+                    user.Id,
+                    user.UserName ?? "<none>",
+                    currentTenantKey ?? "<none>",
+                    normalizedRequestedTenantKey,
+                    branchCode ?? "<none>",
+                    tenantClaim ?? "<none>");
+                return;
+            }
+
+            tenantKeyProperty.SetValue(user, currentTenantKey ?? string.Empty);
+            _logger.LogWarning(
+                "Failed to repair tenant binding for login user. UserId={UserId}, UserName={UserName}, PreviousTenantKey={PreviousTenantKey}, RequestedTenantKey={RequestedTenantKey}, Errors={Errors}",
+                user.Id,
+                user.UserName ?? "<none>",
+                currentTenantKey ?? "<none>",
+                normalizedRequestedTenantKey,
+                string.Join("; ", updateResult.Errors.Select(x => x.Description)));
         }
 
         private async Task EnsureClientAllowedAsync(TUser user, AuthorizationRequest? context)
@@ -1114,6 +1397,39 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
 
             if (!adminAccess.IsSuperAdmin)
                 throw new SecurityException("User is not allowed to login to admin UI.");
+        }
+
+        private async Task EnsureLocalLoginAllowedAsync(AuthorizationRequest? context)
+        {
+            if (context?.Client?.ClientId == null)
+            {
+                return;
+            }
+
+            var client = await _clientStore.FindEnabledClientByIdAsync(context.Client.ClientId);
+            if (client == null)
+            {
+                return;
+            }
+
+            if (!client.EnableLocalLogin)
+            {
+                throw new SecurityException("Client does not allow local login.");
+            }
+
+            var identityProviderRestrictions = client.IdentityProviderRestrictions?
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToArray() ?? Array.Empty<string>();
+
+            if (identityProviderRestrictions.Length == 0)
+            {
+                return;
+            }
+
+            if (!identityProviderRestrictions.Contains(IdentityServerConstants.LocalIdentityProvider, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new SecurityException("Client does not allow local login.");
+            }
         }
 
         private async Task<IActionResult?> TryTenantAdminRedirectViewAsync(TUser user, AuthorizationRequest? context)
@@ -1161,6 +1477,139 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Controllers
                                 await _userManager.IsInRoleAsync(user, _adminConfiguration.TenantAdminRole);
 
             return (isSuperAdmin, isTenantAdmin);
+        }
+
+        private static string TruncateForLog(string? value, int maxLength = 256)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "<none>";
+            }
+
+            return value.Length <= maxLength ? value : value[..maxLength] + "...";
+        }
+
+        private static string? NormalizeTenantKey(string? tenantKey)
+        {
+            return string.IsNullOrWhiteSpace(tenantKey) ? null : tenantKey.Trim();
+        }
+
+        private static bool RequiresFreshLogin(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl))
+            {
+                return false;
+            }
+
+            var (_, query, _) = SplitRelativeUrl(returnUrl);
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return false;
+            }
+
+            var parsedQuery = QueryHelpers.ParseQuery(query);
+            if (parsedQuery.ContainsKey("max_age"))
+            {
+                return true;
+            }
+
+            if (!parsedQuery.TryGetValue("prompt", out var promptValues))
+            {
+                return false;
+            }
+
+            return ContainsPromptLogin(promptValues);
+        }
+
+        private static string PrepareSuccessfulLoginReturnUrl(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl))
+            {
+                return returnUrl ?? string.Empty;
+            }
+
+            var (path, query, fragment) = SplitRelativeUrl(returnUrl);
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return returnUrl;
+            }
+
+            var parsedQuery = QueryHelpers.ParseQuery(query);
+            if (!parsedQuery.ContainsKey("max_age") &&
+                (!parsedQuery.TryGetValue("prompt", out var promptValues) || !ContainsPromptLogin(promptValues)))
+            {
+                return returnUrl;
+            }
+
+            var sanitizedParameters = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+            foreach (var parameter in parsedQuery)
+            {
+                if (string.Equals(parameter.Key, "max_age", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (string.Equals(parameter.Key, "prompt", StringComparison.OrdinalIgnoreCase))
+                {
+                    var remainingPromptValues = parameter.Value
+                        .SelectMany(value => value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Where(value => !string.Equals(value, OidcConstants.PromptModes.Login, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+
+                    if (remainingPromptValues.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    sanitizedParameters.Add(new System.Collections.Generic.KeyValuePair<string, string>(
+                        parameter.Key,
+                        string.Join(' ', remainingPromptValues)));
+                    continue;
+                }
+
+                foreach (var value in parameter.Value)
+                {
+                    sanitizedParameters.Add(new System.Collections.Generic.KeyValuePair<string, string>(parameter.Key, value));
+                }
+            }
+
+            return path + QueryString.Create(sanitizedParameters).ToUriComponent() + fragment;
+        }
+
+        private static bool ContainsPromptLogin(StringValues promptValues)
+        {
+            return promptValues
+                .SelectMany(value => value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Any(value => string.Equals(value, OidcConstants.PromptModes.Login, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static (string Path, string Query, string Fragment) SplitRelativeUrl(string relativeUrl)
+        {
+            var fragmentIndex = relativeUrl.IndexOf('#');
+            var fragment = fragmentIndex >= 0 ? relativeUrl[fragmentIndex..] : string.Empty;
+            var withoutFragment = fragmentIndex >= 0 ? relativeUrl[..fragmentIndex] : relativeUrl;
+
+            var queryIndex = withoutFragment.IndexOf('?');
+            if (queryIndex < 0)
+            {
+                return (withoutFragment, string.Empty, fragment);
+            }
+
+            return (
+                withoutFragment[..queryIndex],
+                withoutFragment[(queryIndex + 1)..],
+                fragment);
+        }
+
+        private static string? GetStringProperty(object source, string propertyName)
+        {
+            var property = source.GetType().GetProperty(propertyName);
+            if (property == null || !property.CanRead)
+            {
+                return null;
+            }
+
+            return property.GetValue(source) as string;
         }
 
         private string GetBranchCodeOrThrow(ClaimsPrincipal principal)

@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MySql.EntityFrameworkCore.Infrastructure;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.Configuration;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.MySql;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.PostgreSQL;
@@ -23,11 +24,14 @@ using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Interfaces;
 using Skoruba.Duende.IdentityServer.STS.Identity.Helpers;
 using Skoruba.Duende.IdentityServer.STS.Identity.Stores;
 using System;
+using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using TenantInfrastructure.Abstractions;
 using TenantInfrastructure.Resolution;
 using TenantInfrastructure.Wiring;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using TenantInfrastructure.Identity;
 using Skoruba.Duende.IdentityServer.STS.Identity.Services;
 
@@ -147,6 +151,59 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
             app.UsePathBase(Configuration.GetValue<string>("BasePath"));
 
             app.UseStaticFiles();
+            app.UseSerilogRequestLogging();
+            app.Use(async (context, next) =>
+            {
+                if (!ShouldTraceAuthorizePath(context.Request.Path))
+                {
+                    await next();
+                    return;
+                }
+
+                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("AuthorizeTrace");
+
+                logger.LogInformation(
+                    "Authorize request received. Method={Method}, Scheme={Scheme}, Host={Host}, Path={Path}, Query={Query}, IsAuthenticated={IsAuthenticated}, UserName={UserName}, CookieNames={CookieNames}",
+                    context.Request.Method,
+                    context.Request.Scheme,
+                    context.Request.Host.Value,
+                    context.Request.Path.Value ?? "<none>",
+                    TruncateForLog(context.Request.QueryString.Value, 3000),
+                    context.User?.Identity?.IsAuthenticated ?? false,
+                    context.User?.Identity?.Name ?? "<none>",
+                    DumpCookieNames(context.Request.Cookies.Keys));
+
+                try
+                {
+                    await next();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Authorize pipeline failed. Method={Method}, Scheme={Scheme}, Host={Host}, Path={Path}, Query={Query}, IsAuthenticated={IsAuthenticated}, UserName={UserName}",
+                        context.Request.Method,
+                        context.Request.Scheme,
+                        context.Request.Host.Value,
+                        context.Request.Path.Value ?? "<none>",
+                        TruncateForLog(context.Request.QueryString.Value, 3000),
+                        context.User?.Identity?.IsAuthenticated ?? false,
+                        context.User?.Identity?.Name ?? "<none>");
+                    throw;
+                }
+
+                logger.LogInformation(
+                    "Authorize response completed. Method={Method}, Scheme={Scheme}, Host={Host}, Path={Path}, StatusCode={StatusCode}, Location={Location}, IsAuthenticated={IsAuthenticated}, UserName={UserName}",
+                    context.Request.Method,
+                    context.Request.Scheme,
+                    context.Request.Host.Value,
+                    context.Request.Path.Value ?? "<none>",
+                    context.Response.StatusCode,
+                    TruncateForLog(context.Response.Headers.Location.ToString(), 3000),
+                    context.User?.Identity?.IsAuthenticated ?? false,
+                    context.User?.Identity?.Name ?? "<none>");
+            });
             UseAuthentication(app);
 
             app.UseSecurityHeaders(Configuration);
@@ -209,7 +266,11 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                     case DatabaseProviderType.MySql:
                         options.UseMySQL(
                             NormalizeMySqlConnectionStringForDevelopment(identityConnectionString, isDevelopment),
-                            b => b.MigrationsAssembly(migrationsAssembly))
+                            b =>
+                            {
+                                b.MigrationsAssembly(migrationsAssembly);
+                                ConfigureMySqlRetry(b);
+                            })
                             .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
@@ -252,7 +313,11 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                     case DatabaseProviderType.MySql:
                         options.UseMySQL(
                             NormalizeMySqlConnectionStringForDevelopment(connectionString, isDevelopment),
-                            b => b.MigrationsAssembly(migrationsAssembly))
+                            b =>
+                            {
+                                b.MigrationsAssembly(migrationsAssembly);
+                                ConfigureMySqlRetry(b);
+                            })
                             .UseSkorubaMySqlNamingConvention();
                         break;
                     default:
@@ -269,16 +334,35 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                 return connectionString;
             }
 
-            var parts = connectionString
-                .Split(';', StringSplitOptions.RemoveEmptyEntries)
-                .Where(part =>
-                {
-                    var trimmedPart = part.TrimStart();
-                    return !trimmedPart.StartsWith("SslMode=", StringComparison.OrdinalIgnoreCase) &&
-                           !trimmedPart.StartsWith("Ssl Mode=", StringComparison.OrdinalIgnoreCase);
-                });
+            var builder = new DbConnectionStringBuilder
+            {
+                ConnectionString = connectionString
+            };
 
-            return $"{string.Join(";", parts)};SslMode=Disabled";
+            RemoveConnectionStringKey(builder, "SslMode");
+            RemoveConnectionStringKey(builder, "Ssl Mode");
+
+            builder["SslMode"] = "Disabled";
+            builder["Pooling"] = "true";
+            builder["Connection Timeout"] = "30";
+            builder["Default Command Timeout"] = "60";
+            builder["Minimum Pool Size"] = "0";
+            builder["Maximum Pool Size"] = "200";
+
+            return builder.ConnectionString;
+        }
+
+        private static void RemoveConnectionStringKey(DbConnectionStringBuilder builder, string key)
+        {
+            if (builder.ContainsKey(key))
+            {
+                builder.Remove(key);
+            }
+        }
+
+        private static void ConfigureMySqlRetry(MySQLDbContextOptionsBuilder mySqlOptions)
+        {
+            mySqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
         }
 
         public virtual void RegisterAuthentication(IServiceCollection services)
@@ -353,6 +437,30 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
             {
                 logger.LogWarning(ex, "Failed to synchronize development OIDC clients at STS startup.");
             }
+        }
+
+        private static bool ShouldTraceAuthorizePath(PathString path)
+        {
+            return path.StartsWithSegments("/connect/authorize", StringComparison.OrdinalIgnoreCase) ||
+                   path.StartsWithSegments("/connect/authorize/callback", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string DumpCookieNames(IEnumerable<string> cookieNames)
+        {
+            return string.Join(", ", cookieNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .OrderBy(name => name)
+                .Select(name => TruncateForLog(name, 128)));
+        }
+
+        private static string TruncateForLog(string? value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "<none>";
+            }
+
+            return value.Length <= maxLength ? value : value[..maxLength] + "...";
         }
     }
 }

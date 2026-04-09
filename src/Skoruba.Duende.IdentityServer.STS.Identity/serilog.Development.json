@@ -3,7 +3,9 @@
     "MinimumLevel": {
       "Override": {
         "Microsoft.EntityFrameworkCore.Database.Command": "Information",
-        "Skoruba.Duende.IdentityServer.STS.Identity.Services.StsIdentityDbConnectionStringResolver": "Information"
+        "Skoruba.Duende.IdentityServer.STS.Identity.Services.StsIdentityDbConnectionStringResolver": "Information",
+        "Serilog.AspNetCore.RequestLoggingMiddleware": "Information",
+        "Microsoft.AspNetCore.Authentication": "Warning"
       }
     }
   }

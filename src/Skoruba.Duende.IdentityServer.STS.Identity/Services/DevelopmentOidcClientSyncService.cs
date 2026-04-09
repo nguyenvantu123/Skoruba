@@ -59,17 +59,21 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Services
                 .Distinct(UriComparer)
                 .ToArray();
 
-            if (normalizedBaseUrls.Length == 0)
+            var explicitRedirectUris = NormalizeUriValues(target.RedirectUris);
+            var explicitPostLogoutRedirectUris = NormalizeUriValues(target.PostLogoutRedirectUris);
+            var explicitCorsOrigins = NormalizeUriValues(target.AllowedCorsOrigins);
+
+            if (normalizedBaseUrls.Length == 0 && explicitRedirectUris.Length == 0)
             {
                 _logger.LogWarning(
-                    "Skipping development OIDC client sync for client '{ClientId}' because no BaseUrls were configured.",
+                    "Skipping development OIDC client sync for client '{ClientId}' because neither BaseUrls nor RedirectUris were configured.",
                     target.ClientId);
                 return;
             }
 
-            var redirectUris = new List<string>();
-            var postLogoutRedirectUris = new List<string>();
-            var corsOrigins = new List<string>();
+            var redirectUris = new List<string>(explicitRedirectUris);
+            var postLogoutRedirectUris = new List<string>(explicitPostLogoutRedirectUris);
+            var corsOrigins = new List<string>(explicitCorsOrigins);
 
             foreach (var baseUrl in normalizedBaseUrls)
             {
@@ -90,7 +94,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Services
             if (redirectUris.Count == 0)
             {
                 _logger.LogWarning(
-                    "Skipping development OIDC client sync for client '{ClientId}' because no valid BaseUrls remained after validation.",
+                    "Skipping development OIDC client sync for client '{ClientId}' because no valid redirect URIs remained after validation.",
                     target.ClientId);
                 return;
             }
@@ -99,6 +103,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Services
                 .Include(x => x.RedirectUris)
                 .Include(x => x.PostLogoutRedirectUris)
                 .Include(x => x.AllowedCorsOrigins)
+                .Include(x => x.IdentityProviderRestrictions)
                 .SingleOrDefaultAsync(x => x.ClientId == target.ClientId, cancellationToken);
 
             if (client == null)
@@ -114,6 +119,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Services
             changed |= ReplaceRedirectUris(client.RedirectUris, redirectUris);
             changed |= ReplacePostLogoutRedirectUris(client.PostLogoutRedirectUris, postLogoutRedirectUris);
             changed |= ReplaceCorsOrigins(client.AllowedCorsOrigins, corsOrigins);
+            changed |= SynchronizeLoginPolicy(client, target);
 
             if (!changed)
             {
@@ -132,6 +138,40 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Services
                 "Synchronized development OIDC client '{ClientId}' with redirect URIs: {RedirectUris}",
                 client.ClientId,
                 string.Join(", ", redirectUris));
+        }
+
+        private static string[] NormalizeUriValues(IEnumerable<string> values)
+        {
+            return values
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(UriComparer)
+                .ToArray();
+        }
+
+        private static bool SynchronizeLoginPolicy(Client client, DevelopmentOidcClientSyncConfiguration.ClientSyncTarget target)
+        {
+            var changed = false;
+
+            if (client.EnableLocalLogin != target.EnableLocalLogin)
+            {
+                client.EnableLocalLogin = target.EnableLocalLogin;
+                changed = true;
+            }
+
+            if (target.ClearIdentityProviderRestrictions && client.IdentityProviderRestrictions.Count > 0)
+            {
+                client.IdentityProviderRestrictions.Clear();
+                changed = true;
+            }
+
+            if (target.ResetUserSsoLifetime && client.UserSsoLifetime.HasValue)
+            {
+                client.UserSsoLifetime = null;
+                changed = true;
+            }
+
+            return changed;
         }
 
         private static bool ReplaceRedirectUris(ICollection<ClientRedirectUri> collection, IReadOnlyCollection<string> desiredValues)

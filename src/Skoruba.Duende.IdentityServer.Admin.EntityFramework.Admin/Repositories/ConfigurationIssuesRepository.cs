@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +45,8 @@ public class ConfigurationIssuesRepository<TDbContext, TRulesDbContext> : IConfi
 
         try
         {
+            LogRulesDbTarget();
+
             var enabledRules = await _rulesDbContext.ConfigurationRules
                 .Where(r => r.IsEnabled)
                 .AsNoTracking()
@@ -93,6 +96,38 @@ public class ConfigurationIssuesRepository<TDbContext, TRulesDbContext> : IConfi
         }
 
         return issues;
+    }
+
+    private void LogRulesDbTarget()
+    {
+        try
+        {
+            var connection = _rulesDbContext.Database.GetDbConnection();
+            var builder = new DbConnectionStringBuilder
+            {
+                ConnectionString = connection.ConnectionString ?? string.Empty
+            };
+
+            string? server = TryGetValue(builder, "Server") ?? TryGetValue(builder, "Host") ?? TryGetValue(builder, "Data Source");
+            string? database = TryGetValue(builder, "Database") ?? TryGetValue(builder, "Initial Catalog");
+            string? port = TryGetValue(builder, "Port");
+
+            _logger.LogInformation(
+                "ConfigurationRules query runtime DB target: Provider={Provider}, Server={Server}, Port={Port}, Database={Database}",
+                connection.GetType().Name,
+                string.IsNullOrWhiteSpace(server) ? "<unknown>" : server,
+                string.IsNullOrWhiteSpace(port) ? "<default>" : port,
+                string.IsNullOrWhiteSpace(database) ? "<unknown>" : database);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unable to resolve runtime DB target for configuration rules query.");
+        }
+    }
+
+    private static string? TryGetValue(DbConnectionStringBuilder builder, string key)
+    {
+        return builder.TryGetValue(key, out var value) ? value?.ToString() : null;
     }
 
     private async Task<ValidationContext> LoadValidationContextAsync()
@@ -195,3 +230,4 @@ public class ConfigurationIssuesRepository<TDbContext, TRulesDbContext> : IConfi
         };
     }
 }
+
