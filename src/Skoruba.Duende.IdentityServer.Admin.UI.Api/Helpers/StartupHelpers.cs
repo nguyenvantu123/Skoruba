@@ -582,6 +582,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Helpers
             services.AddScoped<ControllerExceptionFilterAttribute>();
             services.AddScoped<IApiErrorResources, ApiErrorResources>();
             services.AddSingleton<ITenantRoleProvider, TenantRoleProvider>();
+            services.AddScoped<IClientScopeCacheService, ClientScopeCacheService>();
             services.AddScoped<IUserThemePreferenceService, UserThemePreferenceService>();
 
             var profileTypes = new HashSet<Type>

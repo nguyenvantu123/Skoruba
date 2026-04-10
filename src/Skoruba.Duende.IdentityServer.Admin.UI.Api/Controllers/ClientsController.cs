@@ -13,6 +13,7 @@ using Skoruba.Duende.IdentityServer.Admin.UI.Api.Dtos.Clients;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.ExceptionHandling;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Mappers;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Resources;
+using Skoruba.Duende.IdentityServer.Admin.UI.Api.Services;
 
 namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
 {
@@ -24,11 +25,16 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
     public class ClientsController : ControllerBase
     {
         private readonly IClientService _clientService;
+        private readonly IClientScopeCacheService _clientScopeCacheService;
         private readonly IApiErrorResources _errorResources;
 
-        public ClientsController(IClientService clientService, IApiErrorResources errorResources)
+        public ClientsController(
+            IClientService clientService,
+            IClientScopeCacheService clientScopeCacheService,
+            IApiErrorResources errorResources)
         {
             _clientService = clientService;
+            _clientScopeCacheService = clientScopeCacheService;
             _errorResources = errorResources;
         }
 
@@ -163,6 +169,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
             }
 
             var id = await _clientService.AddClientAsync(clientDto);
+            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, HttpContext.RequestAborted);
             client.Id = id;
 
             return CreatedAtAction(nameof(Get), new { id }, client);
@@ -178,6 +185,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
 
             await _clientService.GetClientAsync(clientDto.Id);
             await _clientService.UpdateClientAsync(clientDto, updateClientClaims: true, updateClientProperties: true);
+            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, HttpContext.RequestAborted);
 
             return NoContent();
         }
@@ -187,10 +195,10 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
         [ProducesResponseType(404)]
         public async Task<IActionResult> Delete(int id)
         {
-            var clientDto = new ClientDto { Id = id };
+            var clientDto = await _clientService.GetClientAsync(id);
 
-            await _clientService.GetClientAsync(clientDto.Id);
             await _clientService.RemoveClientAsync(clientDto);
+            await _clientScopeCacheService.RemoveAllowedScopesAsync(clientDto.ClientId, HttpContext.RequestAborted);
 
             return NoContent();
         }
