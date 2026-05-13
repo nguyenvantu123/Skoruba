@@ -1,9 +1,14 @@
 @model Skoruba.Duende.IdentityServer.STS.Identity.ViewModels.Account.RedirectViewModel
 @using Microsoft.AspNetCore.Mvc.Localization
 @inject IViewLocalizer Localizer
-<div class="py-8 text-center">
-    <h1 class="text-4xl font-bold mb-2">@Localizer["Title"]</h1>
-    <p class="text-lg text-muted-foreground">@Localizer["SubTitle"]</p>
+<div class="bg-background flex min-h-[calc(100vh-300px)] items-center justify-center px-6 py-10">
+    <div class="w-full max-w-md rounded-xl border border-border bg-card px-8 py-10 text-center shadow-sm">
+        <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/40">
+            <span class="inline-flex h-6 w-6 rounded-full border-2 border-current border-r-transparent text-primary animate-spin"></span>
+        </div>
+        <h1 class="text-4xl font-bold mb-2">@Localizer["Title"]</h1>
+        <p class="text-lg text-muted-foreground">@Localizer["SubTitle"]</p>
+    </div>
 </div>
-<meta http-equiv="refresh" content="0;url=@Model.RedirectUrl" data-url="@Model.RedirectUrl">
-<script src="~/js/signin-redirect.js"></script>
+<meta http-equiv="refresh" content="2;url=@Model.RedirectUrl" data-url="@Model.RedirectUrl">
+<script src="~/js/signin-redirect.js" asp-append-version="true"></script>

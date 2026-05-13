@@ -26,7 +26,7 @@
         "Kestrel__Certificates__Default__Path": "../../.certs/local-dev-mkcert.p12",
         "Kestrel__Certificates__Default__Password": "changeit"
       },
-      "applicationUrl": "https://api.dev.localhost:5102"
+      "applicationUrl": "https://api.dev.localhost:5102;https://192.168.100.65:5102"
     }
   }
 }

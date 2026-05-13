@@ -64,7 +64,7 @@
             <div class="card-content py-6">
                 @if (Model.EnableLocalLogin)
                 {
-                    <form asp-route="Login" method="post" class="space-y-5">
+                    <form id="local-login-form" asp-route="Login" method="post" class="space-y-5">
                         <input type="hidden" asp-for="ReturnUrl" />
 
                         @await Html.PartialAsync("_ValidationSummary")
@@ -113,9 +113,13 @@
                         }
 
                         <div id="tenant-login-submit" class="form-item">
-                            <button type="submit" name="button" value="login" class="btn-default w-full">
-                                <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
-                                @Localizer["Login"]
+                            <button id="login-submit-button" type="submit" name="button" value="login" class="btn-default w-full" aria-busy="false">
+                                <span id="login-submit-spinner"
+                                      class="hidden inline-flex h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin"></span>
+                                <span id="login-submit-icon" class="inline-flex items-center">
+                                    <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
+                                </span>
+                                <span id="login-submit-label">@Localizer["Login"]</span>
                             </button>
                         </div>
 
@@ -208,6 +212,10 @@
         const hiddenIcon = document.getElementById('password-hidden-icon');
         const visibleIcon = document.getElementById('password-visible-icon');
         const toggleText = document.getElementById('password-toggle-text');
+        const loginForm = document.getElementById('local-login-form');
+        const loginSubmitButton = document.getElementById('login-submit-button');
+        const loginSubmitSpinner = document.getElementById('login-submit-spinner');
+        const loginSubmitIcon = document.getElementById('login-submit-icon');
 
         if (!passwordInput || !toggleButton || !hiddenIcon || !visibleIcon || !toggleText) {
             return;
@@ -221,6 +229,32 @@
             toggleText.textContent = isHidden ? 'Hide password' : 'Show password';
             hiddenIcon.classList.toggle('hidden', isHidden);
             visibleIcon.classList.toggle('hidden', !isHidden);
+        });
+
+        if (!loginForm || !loginSubmitButton || !loginSubmitSpinner || !loginSubmitIcon) {
+            return;
+        }
+
+        const activateLoginSubmitState = () => {
+            if (loginForm.dataset.submitting === 'true') {
+                return;
+            }
+
+            loginForm.dataset.submitting = 'true';
+            loginSubmitButton.disabled = true;
+            loginSubmitButton.setAttribute('aria-busy', 'true');
+            loginSubmitButton.classList.add('cursor-wait', 'opacity-90');
+            loginSubmitSpinner.classList.remove('hidden');
+            loginSubmitIcon.classList.add('hidden');
+        };
+
+        loginForm.addEventListener('submit', (event) => {
+            const submitter = event.submitter;
+            if (submitter && submitter.value && submitter.value !== 'login') {
+                return;
+            }
+
+            activateLoginSubmitState();
         });
     })();
 </script>
