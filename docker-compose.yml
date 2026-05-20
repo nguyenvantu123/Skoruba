@@ -71,6 +71,8 @@ services:
       - ForwardedHeadersConfiguration__ForwardLimit=1
       - DockerConfiguration__UpdateCaCertificate=true
       - ASPNETCORE_ENVIRONMENT=Development
+      # Tenant registry shares IdentityServerAdmin via IdentityDbConnection.
+      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
     volumes:
       - './shared/serilog.json:/app/serilog.json'
       - './shared/identitydata.json:/app/identitydata.json'
@@ -100,6 +102,8 @@ services:
       - ForwardedHeadersConfiguration__ForwardLimit=1
       - DockerConfiguration__UpdateCaCertificate=true
       - ASPNETCORE_ENVIRONMENT=Development
+      # Tenant registry shares IdentityServerAdmin via IdentityDbConnection.
+      - 'ConnectionStrings__IdentityDbConnection=Server=localhost;Database=IdentityServerAdmin;Uid=root;Pwd=Xzyk@12345678;SslMode=Preferred;'
     depends_on:
       - db
     volumes:

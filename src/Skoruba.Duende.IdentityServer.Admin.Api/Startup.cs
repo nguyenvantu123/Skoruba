@@ -60,12 +60,25 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
             ConfigurePublicTenantDirectory(services);
             ConfigureTenantAdminProjectionSync(services);
 
-            var databaseProviderConfiguration = Configuration.GetSection(nameof(DatabaseProviderConfiguration)).Get<DatabaseProviderConfiguration>();
+            var databaseProviderConfiguration = Configuration.GetSection(nameof(DatabaseProviderConfiguration)).Get<DatabaseProviderConfiguration>()
+                ?? new DatabaseProviderConfiguration { ProviderType = DatabaseProviderType.MySql };
             var databaseMigration = StartupHelpers.GetDatabaseMigrationsConfiguration(Configuration, MigrationAssemblyConfiguration.GetMigrationAssemblyByProvider(databaseProviderConfiguration));
+
+            var identityDbConnectionString = Configuration.GetConnectionString("IdentityDbConnection");
+
+            if (string.IsNullOrWhiteSpace(identityDbConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "Connection string 'IdentityDbConnection' is required for TenantInfrastructure. " +
+                    "Set ConnectionStrings:IdentityDbConnection in configuration.");
+            }
 
             services.AddTenantInfrastructure(opt =>
             {
-                opt.MasterConnectionString = NormalizeMySqlConnectionStringForDevelopment(Configuration.GetConnectionString("MasterDb"));
+                opt.DatabaseProvider = databaseProviderConfiguration.ProviderType.ToString();
+                opt.MasterConnectionString = databaseProviderConfiguration.ProviderType == DatabaseProviderType.MySql
+                    ? NormalizeMySqlConnectionStringForDevelopment(identityDbConnectionString)
+                    : identityDbConnectionString;
                 opt.RedisConnectionString = Configuration.GetConnectionString("Redis");
                 opt.RedisInstanceName = Configuration.GetValue<string>("TenantInfrastructure:RedisInstanceName") ?? "tenant-registry:";
                 opt.ApplyMasterDbMigrations = Configuration.GetValue<bool>("TenantInfrastructure:ApplyMasterDbMigrations");

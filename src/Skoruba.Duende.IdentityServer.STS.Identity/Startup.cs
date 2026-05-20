@@ -59,11 +59,26 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
                 .GetSection(TenantIdentityDbResolutionConfiguration.SectionName)
                 .Get<TenantIdentityDbResolutionConfiguration>() ?? new TenantIdentityDbResolutionConfiguration();
 
+            var databaseProviderConfiguration = Configuration
+                .GetSection(nameof(DatabaseProviderConfiguration))
+                .Get<DatabaseProviderConfiguration>()
+                ?? new DatabaseProviderConfiguration { ProviderType = DatabaseProviderType.MySql };
+
+            var identityDbConnectionString = Configuration.GetConnectionString(ConfigurationConsts.IdentityDbConnectionStringKey);
+
+            if (string.IsNullOrWhiteSpace(identityDbConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "Connection string 'IdentityDbConnection' is required for TenantInfrastructure. " +
+                    "Set ConnectionStrings:IdentityDbConnection in configuration.");
+            }
+
             services.AddTenantInfrastructure(opt =>
             {
-                opt.MasterConnectionString = NormalizeMySqlConnectionStringForDevelopment(
-                    Configuration.GetConnectionString("MasterDb"),
-                    Environment.IsDevelopment());
+                opt.DatabaseProvider = databaseProviderConfiguration.ProviderType.ToString();
+                opt.MasterConnectionString = databaseProviderConfiguration.ProviderType == DatabaseProviderType.MySql
+                    ? NormalizeMySqlConnectionStringForDevelopment(identityDbConnectionString, Environment.IsDevelopment())
+                    : identityDbConnectionString;
                 opt.RedisConnectionString = Configuration.GetConnectionString("Redis") ?? string.Empty;
                 opt.RedisInstanceName = Configuration.GetValue<string>("TenantInfrastructure:RedisInstanceName") ?? "tenant-registry:";
                 opt.ApplyMasterDbMigrations = Configuration.GetValue<bool>("TenantInfrastructure:ApplyMasterDbMigrations");
