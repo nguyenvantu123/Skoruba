@@ -1,208 +1,288 @@
 ﻿@using Microsoft.AspNetCore.Mvc.Localization
+@using Microsoft.Extensions.Options
 @using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Interfaces
 @using Skoruba.Duende.IdentityServer.STS.Identity.Helpers.Localization
+@using Skoruba.Duende.IdentityServer.STS.Identity.Models.Login
+@using Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.Configuration
+@using TenantInfrastructure.Abstractions
 @inject IViewLocalizer Localizer
 @model Skoruba.Duende.IdentityServer.STS.Identity.ViewModels.Account.LoginViewModel
 @inject IRootConfiguration RootConfiguration
+@inject IOptions<PhoneOtpLoginConfiguration> PhoneOtpOptions
+@inject ITenantContextAccessor TenantContextAccessor
+@{
+    ViewData["Title"] = Localizer["Login.Title"].Value;
 
-<div class="bg-background flex min-h-[calc(100vh-300px)] flex-col items-center justify-center gap-6 py-8 px-6 md:px-10">
-    <div class="w-full max-w-md">
-        <div class="flex flex-col items-center gap-2 text-center mb-6">
-            <a href="/" class="flex flex-col items-center gap-2 font-medium">
-                <div class="flex h-20 w-20 items-center justify-center rounded-md">
-                    <img src="@UrlHelper.Content(RootConfiguration.AdminConfiguration.HomePageLogoUri)" alt="Logo"
-                        class="h-16 w-auto opacity-90 dark:invert" />
-                </div>
-                <span class="sr-only">@RootConfiguration.AdminConfiguration.PageTitle</span>
-            </a>
-            <h1 class="text-2xl font-bold">@Localizer["Title"]</h1>
-            @if (RootConfiguration.RegisterConfiguration.Enabled)
-            {
-                <p class="text-sm text-muted-foreground">
-                    @Localizer["NoAccount"]
-                    <a asp-action="Register" asp-controller="Account"
-                        class="text-primary hover:underline font-medium">@Localizer["SignUp"]</a>
-                </p>
-            }
-        </div>
+    var phoneOtpEnabled = PhoneOtpOptions.Value.Enabled && TenantContextAccessor.Current != null;
+    var phoneTabPreActive = phoneOtpEnabled
+        && TempData.Peek("PhoneTabPreActive") is bool phoneTabPreActiveFlag
+        && phoneTabPreActiveFlag;
 
-        @if (Model.HasTenantContext)
+    if (phoneOtpEnabled)
+    {
+        ViewData["PhoneOtpReturnUrl"] = Model?.ReturnUrl;
+
+        var phoneOtpError = TempData.Peek("PhoneOtpError") as string;
+        if (!string.IsNullOrEmpty(phoneOtpError))
         {
-            <div id="tenant-status-banner"
-                 class="mb-4 hidden rounded-lg border border-border bg-muted/40 px-4 py-3 text-left"
-                 data-endpoint="@(string.IsNullOrWhiteSpace(Model.TenantKey)
-                     ? Url.Action("TenantStatus", "Account")
-                     : Url.Action("TenantStatus", "Account", new { tenant = Model.TenantKey }))"
-                 data-loading-title="@Localizer["TenantStatusLoadingTitle"]"
-                 data-loading-message="@Localizer["TenantStatusLoadingMessage"]"
-                 data-ready-prefix="@Localizer["TenantStatusReadyPrefix"]"
-                 data-missing-title="@Localizer["TenantStatusMissingTitle"]"
-                 data-error-title="@Localizer["TenantStatusErrorTitle"]"
-                 data-fallback-message="@Localizer["TenantStatusFallbackMessage"]"
-                 data-default-ready-message="@Localizer["TenantStatusReadyMessage"]">
-                <div class="flex items-start gap-3">
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center">
-                        <span id="tenant-status-indicator"
-                              class="inline-flex h-5 w-5 rounded-full border-2 border-current border-r-transparent text-muted-foreground animate-spin"></span>
+            ViewData["PhoneOtpError"] = phoneOtpError;
+        }
+    }
+
+    // DTO supplied to the login-shell header partial so the in-page language
+    // switcher can populate its hidden returnUrl with the current request URL.
+    var loginHeaderModel = new LoginShellHeaderModel
+    {
+        CurrentPath = Context.Request.Path.HasValue ? Context.Request.Path.Value : "/",
+        CurrentQuery = Context.Request.QueryString.HasValue ? Context.Request.QueryString.Value : string.Empty,
+    };
+}
+
+@section styles {
+    <link rel="stylesheet" href="~/css/login-tabs.css" asp-append-version="true" />
+}
+
+<div class="login-shell login-shell--gradient">
+    <partial name="Common/_LoginHeader" model="loginHeaderModel" />
+
+    <main class="login-shell__main flex min-h-[calc(100vh-300px)] flex-col items-center justify-center gap-6 py-8 px-6 md:px-10">
+        <div class="w-full max-w-md">
+            <div class="flex flex-col items-center gap-2 text-center mb-6">
+                <a href="/" class="flex flex-col items-center gap-2 font-medium">
+                    <div class="login-shell__logo-block flex h-20 w-20 items-center justify-center rounded-md">
+                        <img src="@UrlHelper.Content(RootConfiguration.AdminConfiguration.HomePageLogoUri)" alt="Logo"
+                            class="h-16 w-auto opacity-90 dark:invert" />
                     </div>
-                    <div id="tenant-status-logo"
-                         class="hidden h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
-                        <img id="tenant-status-logo-image"
-                             alt="Tenant logo"
-                             class="h-full w-full object-cover" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <div id="tenant-status-title" class="text-sm font-medium text-foreground"></div>
-                        <div id="tenant-status-message" class="mt-1 text-xs text-muted-foreground"></div>
+                    <span class="sr-only">@RootConfiguration.AdminConfiguration.PageTitle</span>
+                </a>
+                <h1 class="login-shell__title text-2xl font-bold">@Localizer["Login.Title"]</h1>
+                <p class="login-shell__subtitle text-sm text-muted-foreground">@Localizer["Login.Subtitle"]</p>
+                @if (RootConfiguration.RegisterConfiguration.Enabled)
+                {
+                    <p class="text-sm text-muted-foreground">
+                        @Localizer["Login.NoAccount"]
+                        <a asp-action="Register" asp-controller="Account"
+                            class="text-primary hover:underline font-medium">@Localizer["Login.SignUp"]</a>
+                    </p>
+                }
+            </div>
+
+            @if (TenantContextAccessor.Current != null)
+            {
+                <partial name="Common/_LoginTenantPill" />
+            }
+
+            @if (Model.HasTenantContext)
+            {
+                <div id="tenant-status-banner"
+                     class="mb-4 hidden rounded-lg border border-border bg-muted/40 px-4 py-3 text-left"
+                     data-endpoint="@(string.IsNullOrWhiteSpace(Model.TenantKey)
+                         ? Url.Action("TenantStatus", "Account")
+                         : Url.Action("TenantStatus", "Account", new { tenant = Model.TenantKey }))"
+                     data-loading-title="@Localizer["TenantStatusLoadingTitle"]"
+                     data-loading-message="@Localizer["TenantStatusLoadingMessage"]"
+                     data-ready-prefix="@Localizer["TenantStatusReadyPrefix"]"
+                     data-missing-title="@Localizer["TenantStatusMissingTitle"]"
+                     data-error-title="@Localizer["TenantStatusErrorTitle"]"
+                     data-fallback-message="@Localizer["TenantStatusFallbackMessage"]"
+                     data-default-ready-message="@Localizer["TenantStatusReadyMessage"]">
+                    <div class="flex items-start gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center">
+                            <span id="tenant-status-indicator"
+                                  class="inline-flex h-5 w-5 rounded-full border-2 border-current border-r-transparent text-muted-foreground animate-spin"></span>
+                        </div>
+                        <div id="tenant-status-logo"
+                             class="hidden h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+                            <img id="tenant-status-logo-image"
+                                 alt="Tenant logo"
+                                 class="h-full w-full object-cover" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div id="tenant-status-title" class="text-sm font-medium text-foreground"></div>
+                            <div id="tenant-status-message" class="mt-1 text-xs text-muted-foreground"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <script src="~/js/login-tenant-status.js" asp-append-version="true"></script>
-        }
+                <script src="~/js/login-tenant-status.js" asp-append-version="true"></script>
+            }
 
-        <div class="card">
-            <div class="card-content py-6">
-                @if (Model.EnableLocalLogin)
-                {
-                    <form id="local-login-form" asp-route="Login" method="post" class="space-y-5">
-                        <input type="hidden" asp-for="ReturnUrl" />
+            <div class="card login-card">
+                <div class="card-content py-6">
+                    @if (Model.EnableLocalLogin)
+                    {
+                        @if (phoneOtpEnabled)
+                        {
+                            <div role="tablist"
+                                 aria-label="@Localizer["LoginWithPhone.TabsLabel"]"
+                                 class="login-tabs flex gap-2 mb-4">
+                                <button type="button"
+                                        role="tab"
+                                        id="tab-account"
+                                        aria-controls="panel-account"
+                                        aria-selected="@(phoneTabPreActive ? "false" : "true")"
+                                        tabindex="@(phoneTabPreActive ? "-1" : "0")"
+                                        class="login-tab @(phoneTabPreActive ? "" : "is-active")">
+                                    @Localizer["LoginWithPhone.TabAccount"]
+                                </button>
+                                <button type="button"
+                                        role="tab"
+                                        id="tab-phone"
+                                        aria-controls="panel-phone"
+                                        aria-selected="@(phoneTabPreActive ? "true" : "false")"
+                                        tabindex="@(phoneTabPreActive ? "0" : "-1")"
+                                        class="login-tab @(phoneTabPreActive ? "is-active" : "")">
+                                    @Localizer["LoginWithPhone.TabPhone"]
+                                </button>
+                            </div>
 
+                            @Html.Raw($"<div role=\"tabpanel\" id=\"panel-account\" aria-labelledby=\"tab-account\" tabindex=\"0\"{(phoneTabPreActive ? " hidden" : string.Empty)}>")
+                        }
+                        <form id="local-login-form" asp-route="Login" method="post" class="space-y-5">
+                            <input type="hidden" asp-for="ReturnUrl" />
+
+                            @await Html.PartialAsync("_ValidationSummary")
+
+                            <div class="form-item">
+                                <label class="form-label" for="Username">
+                                    @Localizer[LoginPolicyResolutionLocalizer.GetUserNameLocalizationKey(Model.LoginResolutionPolicy)]
+                                </label>
+                                <div class="input-with-icon relative">
+                                    <lucideicon name="user" class="login-shell__input-icon h-4 w-4" aria-hidden="true" />
+                                    <input id="Username" class="input pl-10" asp-for="Username" autofocus tw-validation />
+                                </div>
+                            </div>
+
+                            <div class="form-item">
+                                <label class="form-label" for="Password">
+                                    @Localizer["Password"]
+                                </label>
+                                <div class="input-with-icon relative">
+                                    <lucideicon name="lock" class="login-shell__input-icon h-4 w-4" aria-hidden="true" />
+                                    <input id="Password" type="password" class="input pl-10 pr-12" asp-for="Password" autocomplete="off"
+                                        tw-validation />
+                                    <button type="button"
+                                            id="toggle-password-visibility"
+                                            class="btn-ghost btn-icon absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2"
+                                            aria-controls="Password"
+                                            aria-label="Show password"
+                                            aria-pressed="false">
+                                        <span id="password-hidden-icon">
+                                            <lucideicon name="eye" class="h-4 w-4" />
+                                        </span>
+                                        <span id="password-visible-icon" class="hidden">
+                                            <lucideicon name="eye-off" class="h-4 w-4" />
+                                        </span>
+                                        <span id="password-toggle-text" class="sr-only">Show password</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if (Model.AllowRememberLogin && !Model.HasTenantContext)
+                            {
+                                <div id="tenant-login-remember" class="flex items-center space-x-2">
+                                    <input asp-for="RememberLogin" type="checkbox" class="checkbox" id="RememberLogin" />
+                                    <label for="RememberLogin" class="label cursor-pointer text-sm">
+                                        @Localizer["Remember"]
+                                    </label>
+                                </div>
+                            }
+
+                            <div id="tenant-login-submit" class="form-item">
+                                <button id="login-submit-button" type="submit" name="button" value="login" class="btn-default btn-gradient-primary w-full" aria-busy="false">
+                                    <span id="login-submit-spinner"
+                                          class="hidden inline-flex h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin"></span>
+                                    <span id="login-submit-icon" class="inline-flex items-center">
+                                        <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
+                                    </span>
+                                    <span id="login-submit-label">@Localizer["Login"]</span>
+                                </button>
+                            </div>
+
+                            @if (!Model.HasTenantContext)
+                            {
+                               
+
+                                <div id="tenant-login-links" class="flex justify-between text-sm">
+                                    <a asp-action="ForgotPassword" asp-controller="Account"
+                                        class="text-primary hover:underline inline-flex items-center gap-1">
+                                        <lucideicon name="key" class="h-3 w-3" />
+                                        @Localizer["Login.Forgot"]
+                                    </a>
+                                    <button type="submit" name="button" value="cancel"
+                                        class="text-primary hover:underline inline-flex items-center gap-1">
+                                        <lucideicon name="x" class="h-3 w-3" />
+                                        @Localizer["Cancel"]
+                                    </button>
+                                </div>
+                            }
+
+                            @if (Model.VisibleExternalProviders.Any())
+                            {
+                                <div class="relative">
+                                    <div class="absolute inset-0 flex items-center">
+                                        <span class="w-full border-t border-border"></span>
+                                    </div>
+                                    <div class="relative flex justify-center text-xs uppercase">
+                                        <span class="bg-background px-2 text-muted-foreground">@Localizer["Login.Or"]</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-4 @(Model.VisibleExternalProviders.Count() > 1 ? "sm:grid-cols-2" : "")">
+                                    @foreach (var provider in Model.VisibleExternalProviders)
+                                    {
+                                        var providerName = provider.DisplayName?.ToLower() ?? provider.AuthenticationScheme.ToLower();
+                                        <a asp-action="ExternalLogin" asp-route-provider="@provider.AuthenticationScheme"
+                                            asp-route-returnUrl="@Model.ReturnUrl"
+                                            class="btn-outline flex items-center justify-center gap-2">
+                                            <span class="text-sm">@provider.DisplayName</span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </form>
+                        @if (phoneOtpEnabled)
+                        {
+                            @Html.Raw("</div>")
+
+                            @Html.Raw($"<div role=\"tabpanel\" id=\"panel-phone\" aria-labelledby=\"tab-phone\" tabindex=\"0\"{(phoneTabPreActive ? string.Empty : " hidden")}>")
+                            @await Html.PartialAsync("_PhoneRequestPanel")
+                            @Html.Raw("</div>")
+                        }
+                    }
+
+                    @if (!Model.EnableLocalLogin && Model.VisibleExternalProviders.Any())
+                    {
                         @await Html.PartialAsync("_ValidationSummary")
 
-                        <div class="form-item">
-                            <label class="form-label" for="Username">
-                                <lucideicon name="user" class="inline-block h-4 w-4 mr-1" />
-                                @Localizer[LoginPolicyResolutionLocalizer.GetUserNameLocalizationKey(Model.LoginResolutionPolicy)]
-                            </label>
-                            <input id="Username" class="input" asp-for="Username" autofocus tw-validation />
-                        </div>
-
-                        <div class="form-item">
-                            <label class="form-label" for="Password">
-                                <lucideicon name="lock" class="inline-block h-4 w-4 mr-1" />
-                                @Localizer["Password"]
-                            </label>
-                            <div class="relative">
-                                <input id="Password" type="password" class="input pr-12" asp-for="Password" autocomplete="off"
-                                    tw-validation />
-                                <button type="button"
-                                        id="toggle-password-visibility"
-                                        class="btn-ghost btn-icon absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2"
-                                        aria-controls="Password"
-                                        aria-label="Show password"
-                                        aria-pressed="false">
-                                    <span id="password-hidden-icon">
-                                        <lucideicon name="eye" class="h-4 w-4" />
-                                    </span>
-                                    <span id="password-visible-icon" class="hidden">
-                                        <lucideicon name="eye-off" class="h-4 w-4" />
-                                    </span>
-                                    <span id="password-toggle-text" class="sr-only">Show password</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        @if (Model.AllowRememberLogin && !Model.HasTenantContext)
-                        {
-                            <div id="tenant-login-remember" class="flex items-center space-x-2">
-                                <input asp-for="RememberLogin" type="checkbox" class="checkbox" id="RememberLogin" />
-                                <label for="RememberLogin" class="label cursor-pointer text-sm">
-                                    @Localizer["Remember"]
-                                </label>
-                            </div>
-                        }
-
-                        <div id="tenant-login-submit" class="form-item">
-                            <button id="login-submit-button" type="submit" name="button" value="login" class="btn-default w-full" aria-busy="false">
-                                <span id="login-submit-spinner"
-                                      class="hidden inline-flex h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin"></span>
-                                <span id="login-submit-icon" class="inline-flex items-center">
-                                    <lucideicon name="log-in" class="inline-block h-4 w-4 mr-2" />
-                                </span>
-                                <span id="login-submit-label">@Localizer["Login"]</span>
-                            </button>
-                        </div>
-
-                        @if (!Model.HasTenantContext)
-                        {
-                           
-
-                            <div id="tenant-login-links" class="flex justify-between text-sm">
-                                <a asp-action="ForgotPassword" asp-controller="Account"
-                                    class="text-primary hover:underline inline-flex items-center gap-1">
-                                    <lucideicon name="key" class="h-3 w-3" />
-                                    @Localizer["Forgot"]
+                        <div class="grid gap-4 @(Model.VisibleExternalProviders.Count() > 1 ? "sm:grid-cols-2" : "")">
+                            @foreach (var provider in Model.VisibleExternalProviders)
+                            {
+                                var providerName = provider.DisplayName?.ToLower() ?? provider.AuthenticationScheme.ToLower();
+                                <a asp-action="ExternalLogin" asp-route-provider="@provider.AuthenticationScheme"
+                                    asp-route-returnUrl="@Model.ReturnUrl"
+                                    class="btn-outline flex items-center justify-center gap-2">
+                                    <span class="text-sm">@provider.DisplayName</span>
                                 </a>
-                                <button type="submit" name="button" value="cancel"
-                                    class="text-primary hover:underline inline-flex items-center gap-1">
-                                    <lucideicon name="x" class="h-3 w-3" />
-                                    @Localizer["Cancel"]
-                                </button>
-                            </div>
-                        }
-
-                        @if (Model.VisibleExternalProviders.Any())
-                        {
-                            <div class="relative">
-                                <div class="absolute inset-0 flex items-center">
-                                    <span class="w-full border-t border-border"></span>
-                                </div>
-                                <div class="relative flex justify-center text-xs uppercase">
-                                    <span class="bg-background px-2 text-muted-foreground">@Localizer["Or"]</span>
-                                </div>
-                            </div>
-
-                            <div class="grid gap-4 @(Model.VisibleExternalProviders.Count() > 1 ? "sm:grid-cols-2" : "")">
-                                @foreach (var provider in Model.VisibleExternalProviders)
-                                {
-                                    var providerName = provider.DisplayName?.ToLower() ?? provider.AuthenticationScheme.ToLower();
-                                    <a asp-action="ExternalLogin" asp-route-provider="@provider.AuthenticationScheme"
-                                        asp-route-returnUrl="@Model.ReturnUrl"
-                                        class="btn-outline flex items-center justify-center gap-2">
-                                        <span class="text-sm">@provider.DisplayName</span>
-                                    </a>
-                                }
-                            </div>
-                        }
-                    </form>
-                }
-
-                @if (!Model.EnableLocalLogin && Model.VisibleExternalProviders.Any())
-                {
-                    @await Html.PartialAsync("_ValidationSummary")
-
-                    <div class="grid gap-4 @(Model.VisibleExternalProviders.Count() > 1 ? "sm:grid-cols-2" : "")">
-                        @foreach (var provider in Model.VisibleExternalProviders)
-                        {
-                            var providerName = provider.DisplayName?.ToLower() ?? provider.AuthenticationScheme.ToLower();
-                            <a asp-action="ExternalLogin" asp-route-provider="@provider.AuthenticationScheme"
-                                asp-route-returnUrl="@Model.ReturnUrl"
-                                class="btn-outline flex items-center justify-center gap-2">
-                                <span class="text-sm">@provider.DisplayName</span>
-                            </a>
-                        }
-                    </div>
-                }
-
-                @if (!Model.EnableLocalLogin && !Model.VisibleExternalProviders.Any())
-                {
-                    <div class="alert-destructive">
-                        <lucideicon name="alert-circle" class="h-4 w-4" />
-                        <div>
-                            <h5 class="alert-title">@Localizer["InvalidRequest"]</h5>
-                            <div class="alert-description">@Localizer["NoSchema"]</div>
+                            }
                         </div>
-                    </div>
-                }
-            </div>
-        </div>
+                    }
 
-        <div class="mt-4 text-center">
-            <p class="text-xs text-muted-foreground">
-                @Localizer["PrivacyNotice"]
-            </p>
+                    @if (!Model.EnableLocalLogin && !Model.VisibleExternalProviders.Any())
+                    {
+                        <div class="alert-destructive">
+                            <lucideicon name="alert-circle" class="h-4 w-4" />
+                            <div>
+                                <h5 class="alert-title">@Localizer["InvalidRequest"]</h5>
+                                <div class="alert-description">@Localizer["NoSchema"]</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <partial name="Common/_LoginFooter" />
         </div>
-    </div>
+    </main>
 </div>
 
 <script>
@@ -258,3 +338,8 @@
         });
     })();
 </script>
+
+@if (phoneOtpEnabled)
+{
+    <script src="~/js/login-tabs.js" defer></script>
+}

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -117,103 +117,31 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="Cancel" xml:space="preserve">
-    <value>Cancel</value>
+  <data name="ConfirmEmailBody" xml:space="preserve">
+    <value>Vui lòng xác nhận tài khoản của bạn bằng cách &lt;a href='{0}'&gt;nhấn vào đây&lt;/a&gt;.</value>
   </data>
-  <data name="Email" xml:space="preserve">
-    <value>Email</value>
+  <data name="ConfirmEmailTitle" xml:space="preserve">
+    <value>Xác nhận email của bạn</value>
   </data>
-  <data name="ExternalLogin" xml:space="preserve">
-    <value>External Login</value>
+  <data name="EmailNotFound" xml:space="preserve">
+    <value>Người dùng không tồn tại hoặc chưa được xác nhận</value>
   </data>
-  <data name="Forgot" xml:space="preserve">
-    <value>Forgot password</value>
+  <data name="ErrorExternalProvider" xml:space="preserve">
+    <value>Lỗi từ nhà cung cấp bên ngoài: {0}</value>
   </data>
-  <data name="InvalidRequest" xml:space="preserve">
-    <value>Invalid login request</value>
+  <data name="InvalidAuthenticatorCode" xml:space="preserve">
+    <value>Mã xác thực không hợp lệ.</value>
   </data>
-  <data name="LocalLogin" xml:space="preserve">
-    <value>Local Login</value>
+  <data name="InvalidRecoveryCode" xml:space="preserve">
+    <value>Mã khôi phục đã nhập không hợp lệ.</value>
   </data>
-  <data name="Login" xml:space="preserve">
-    <value>Login</value>
+  <data name="ResetPasswordBody" xml:space="preserve">
+    <value>Vui lòng đặt lại mật khẩu của bạn bằng cách &lt;a href='{0}'&gt;nhấn vào đây&lt;/a&gt;.</value>
   </data>
-  <data name="NoAccount" xml:space="preserve">
-    <value>Don't have an account?</value>
+  <data name="ResetPasswordTitle" xml:space="preserve">
+    <value>Đặt lại mật khẩu</value>
   </data>
-  <data name="NoSchema" xml:space="preserve">
-    <value>There are no login schemes configured for this client.</value>
-  </data>
-  <data name="Or" xml:space="preserve">
-    <value>Or continue with</value>
-  </data>
-  <data name="Password" xml:space="preserve">
-    <value>Password</value>
-  </data>
-  <data name="PrivacyNotice" xml:space="preserve">
-    <value>By signing in, you agree to our Terms of Service and Privacy Policy.</value>
-  </data>
-  <data name="Register" xml:space="preserve">
-    <value>Register</value>
-  </data>
-  <data name="Remember" xml:space="preserve">
-    <value>Remember my login</value>
-  </data>
-  <data name="SignUp" xml:space="preserve">
-    <value>Sign up</value>
-  </data>
-  <data name="Title" xml:space="preserve">
-    <value>Login</value>
-  </data>
-  <data name="Username" xml:space="preserve">
-    <value>Username</value>
-  </data>
-  <data name="Login.Title" xml:space="preserve">
-    <value>Sign in</value>
-  </data>
-  <data name="Login.Subtitle" xml:space="preserve">
-    <value>Sign in to your account to continue</value>
-  </data>
-  <data name="Login.TenantPillLabel" xml:space="preserve">
-    <value>Current tenant</value>
-  </data>
-  <data name="Login.TenantPillAriaLabel" xml:space="preserve">
-    <value>Current tenant</value>
-  </data>
-  <data name="Login.Nav.Products" xml:space="preserve">
-    <value>Products</value>
-  </data>
-  <data name="Login.Nav.Features" xml:space="preserve">
-    <value>Features</value>
-  </data>
-  <data name="Login.Nav.Pricing" xml:space="preserve">
-    <value>Pricing</value>
-  </data>
-  <data name="Login.HeaderCtaLogin" xml:space="preserve">
-    <value>Sign in</value>
-  </data>
-  <data name="Login.TermsNotice" xml:space="preserve">
-    <value>By continuing you agree to our {0} and {1}.</value>
-  </data>
-  <data name="Login.TermsLink" xml:space="preserve">
-    <value>Terms of Service</value>
-  </data>
-  <data name="Login.PrivacyLink" xml:space="preserve">
-    <value>Privacy Policy</value>
-  </data>
-  <data name="Login.SupportLink" xml:space="preserve">
-    <value>Support</value>
-  </data>
-  <data name="Login.Forgot" xml:space="preserve">
-    <value>Forgot password?</value>
-  </data>
-  <data name="Login.SignUp" xml:space="preserve">
-    <value>Sign up</value>
-  </data>
-  <data name="Login.NoAccount" xml:space="preserve">
-    <value>Don't have an account?</value>
-  </data>
-  <data name="Login.Or" xml:space="preserve">
-    <value>Or continue with</value>
+  <data name="Unable2FA" xml:space="preserve">
+    <value>Không thể tải người dùng xác thực hai yếu tố.</value>
   </data>
 </root>

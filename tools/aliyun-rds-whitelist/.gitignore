@@ -1,0 +1,6 @@
+.env
+.last-ip.cache
+.last-ip-rds.cache
+.last-ip-redis.cache
+update-whitelist.log
+*.tmp

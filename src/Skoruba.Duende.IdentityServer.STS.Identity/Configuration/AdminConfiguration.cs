@@ -17,5 +17,19 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Configuration
         public string Theme { get; set; }
 
         public string CustomThemeCss { get; set; }
+
+#nullable enable
+        public string? TermsOfServiceUri { get; set; }
+
+        public string? PrivacyPolicyUri { get; set; }
+
+        public string? SupportUri { get; set; }
+
+        public string? MarketingProductsUri { get; set; }
+
+        public string? MarketingFeaturesUri { get; set; }
+
+        public string? MarketingPricingUri { get; set; }
+#nullable restore
     }
 }

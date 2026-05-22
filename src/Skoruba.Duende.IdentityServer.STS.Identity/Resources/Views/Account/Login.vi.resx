@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="LoginWithPhone.TabsLabel" xml:space="preserve">
+    <value>Phương thức đăng nhập</value>
+  </data>
+  <data name="LoginWithPhone.TabAccount" xml:space="preserve">
+    <value>Tài khoản</value>
+  </data>
+  <data name="LoginWithPhone.TabPhone" xml:space="preserve">
+    <value>Số điện thoại</value>
+  </data>
+  <data name="Login.Title" xml:space="preserve">
+    <value>Đăng nhập</value>
+  </data>
+  <data name="Login.Subtitle" xml:space="preserve">
+    <value>Đăng nhập vào tài khoản của bạn để tiếp tục</value>
+  </data>
+  <data name="Login.TenantPillLabel" xml:space="preserve">
+    <value>Tenant Hiện Tại</value>
+  </data>
+  <data name="Login.TenantPillAriaLabel" xml:space="preserve">
+    <value>Tenant hiện tại</value>
+  </data>
+  <data name="Login.Nav.Products" xml:space="preserve">
+    <value>Sản phẩm</value>
+  </data>
+  <data name="Login.Nav.Features" xml:space="preserve">
+    <value>Tính năng</value>
+  </data>
+  <data name="Login.Nav.Pricing" xml:space="preserve">
+    <value>Bảng giá</value>
+  </data>
+  <data name="Login.HeaderCtaLogin" xml:space="preserve">
+    <value>Đăng nhập</value>
+  </data>
+  <data name="Login.TermsNotice" xml:space="preserve">
+    <value>Tiếp tục đồng nghĩa bạn đồng ý với {0} và {1} của chúng tôi.</value>
+  </data>
+  <data name="Login.TermsLink" xml:space="preserve">
+    <value>Điều khoản dịch vụ</value>
+  </data>
+  <data name="Login.PrivacyLink" xml:space="preserve">
+    <value>Chính sách bảo mật</value>
+  </data>
+  <data name="Login.SupportLink" xml:space="preserve">
+    <value>Hỗ trợ</value>
+  </data>
+  <data name="Login.Forgot" xml:space="preserve">
+    <value>Quên mật khẩu?</value>
+  </data>
+  <data name="Login.SignUp" xml:space="preserve">
+    <value>Đăng ký ngay</value>
+  </data>
+  <data name="Login.NoAccount" xml:space="preserve">
+    <value>Chưa có tài khoản?</value>
+  </data>
+  <data name="Login.Or" xml:space="preserve">
+    <value>Hoặc tiếp tục với</value>
+  </data>
+</root>

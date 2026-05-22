@@ -22,6 +22,7 @@ using Skoruba.Duende.IdentityServer.STS.Identity.Configuration;
 using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Constants;
 using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Interfaces;
 using Skoruba.Duende.IdentityServer.STS.Identity.Helpers;
+using Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp;
 using Skoruba.Duende.IdentityServer.STS.Identity.Stores;
 using System;
 using System.Collections.Generic;
@@ -119,6 +120,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
 
             services.AddDataProtection<IdentityServerDataProtectionDbContext>(Configuration);
             services.AddEmailSenders(Configuration);
+            services.AddPhoneOtpLogin(Configuration);
             RegisterAuthentication(services);
             services.AddScoped<ITenantAdminAccountService, TenantAdminAccountService>();
             services.AddScoped<ITenantRegistryLookupService, TenantRegistryLookupService>();

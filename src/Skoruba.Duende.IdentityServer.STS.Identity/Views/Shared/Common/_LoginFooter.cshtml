@@ -1,0 +1,55 @@
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Interfaces
+@inject IViewLocalizer Localizer
+@inject IRootConfiguration RootConfiguration
+@{
+    // Fallback every URL to "#" when it is null or whitespace so that the layout
+    // never collapses (Requirement 4.4) and every anchor still renders.
+    static string ResolveUrl(string url) => string.IsNullOrWhiteSpace(url) ? "#" : url;
+
+    // Build a safely-encoded anchor for the TermsNotice paragraph. Both the href
+    // attribute value and the link text are HTML-encoded so untrusted config or
+    // localized text cannot inject markup.
+    static string BuildNoticeAnchor(string href, string text)
+    {
+        var encoder = HtmlEncoder.Default;
+        return "<a href=\"" + encoder.Encode(href) + "\" class=\"login-shell__footer-link\">"
+               + encoder.Encode(text) + "</a>";
+    }
+
+    var admin = RootConfiguration.AdminConfiguration;
+    var termsUrl = ResolveUrl(admin.TermsOfServiceUri);
+    var privacyUrl = ResolveUrl(admin.PrivacyPolicyUri);
+    var supportUrl = ResolveUrl(admin.SupportUri);
+
+    var termsLinkText = Localizer["Login.TermsLink"].Value;
+    var privacyLinkText = Localizer["Login.PrivacyLink"].Value;
+    var supportLinkText = Localizer["Login.SupportLink"].Value;
+
+    var termsAnchorHtml = BuildNoticeAnchor(termsUrl, termsLinkText);
+    var privacyAnchorHtml = BuildNoticeAnchor(privacyUrl, privacyLinkText);
+
+    // Encode the localized template first so any non-placeholder content is escaped,
+    // then substitute the two pre-built anchor strings into the {0}/{1} placeholders.
+    var noticeTemplate = HtmlEncoder.Default.Encode(Localizer["Login.TermsNotice"].Value);
+    var noticeHtml = string.Format(noticeTemplate, termsAnchorHtml, privacyAnchorHtml);
+}
+
+<footer class="login-shell__footer">
+    <p class="login-shell__terms-notice">@Html.Raw(noticeHtml)</p>
+
+    <ul class="login-shell__footer-links" role="list">
+        <li>
+            <a href="@termsUrl" class="login-shell__footer-link">@termsLinkText</a>
+        </li>
+        <li class="login-shell__footer-separator" aria-hidden="true">·</li>
+        <li>
+            <a href="@privacyUrl" class="login-shell__footer-link">@privacyLinkText</a>
+        </li>
+        <li class="login-shell__footer-separator" aria-hidden="true">·</li>
+        <li>
+            <a href="@supportUrl" class="login-shell__footer-link">@supportLinkText</a>
+        </li>
+    </ul>
+</footer>

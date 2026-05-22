@@ -1,0 +1,395 @@
+/*
+ * login-tabs.css — minimal, additive styling for the phone-otp login tablist.
+ *
+ * Designed to coexist with the Tailwind utility classes already on the
+ * Login.cshtml markup (e.g. `flex gap-2 mb-4` on [role="tablist"]).
+ * Keep selectors role-based so the file works regardless of utility classes.
+ */
+
+[role="tablist"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[role="tab"] {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: -1px;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    line-height: 1.25;
+}
+
+[role="tab"][aria-selected="true"],
+[role="tab"].is-active {
+    border-bottom-color: currentColor;
+    font-weight: 600;
+}
+
+[role="tab"]:focus {
+    outline: none;
+}
+
+[role="tab"]:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+[role="tabpanel"][hidden] {
+    display: none;
+}
+
+/*
+ * Honeypot field used by Step 1 (Phone request) to deter naive bots.
+ * Visually hidden but still part of the layout flow-free; combined with
+ * `tabindex="-1"` and `aria-hidden="true"` on the input itself, the field
+ * is not announced by AT and not reachable via Tab.
+ */
+.is-honeypot {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* ----------------------------------------------------------------------------
+ * Login shell chrome — additive only, scoped to /Account/Login and
+ * /Account/LoginWithPhone/Verify via the `.login-shell` wrapper that the
+ * Razor templates emit. Other pages using `_Layout.cshtml` are not affected
+ * because no body-level rule is changed.
+ *
+ * All rules below use existing CSS variables (`--background`, `--foreground`,
+ * `--primary`, `--primary-foreground`, `--border`, `--muted`, `--muted-foreground`)
+ * via the `hsl(var(--token))` pattern that matches the rest of the project's
+ * generated theme tokens. No new variable declarations are introduced and no
+ * inline color literals are used.
+ *
+ * Validates Requirements 1.7, 1.8, 1.9, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.10,
+ * 8.4, 9.7, 9.8, 10.7, 12.5, 13.2.
+ * -------------------------------------------------------------------------- */
+
+/* Page-scoped wrapper. The gradient is composed of two layers using the
+ * existing `--primary` and `--background` tokens so that the chrome reflects
+ * the theme without re-declaring tokens locally. */
+.login-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+}
+
+.login-shell--gradient {
+    background-image:
+        radial-gradient(circle at 15% 0%, hsl(var(--primary) / 0.30) 0%, hsl(var(--primary) / 0) 55%),
+        radial-gradient(circle at 85% 100%, hsl(var(--primary) / 0.20) 0%, hsl(var(--primary) / 0) 60%),
+        linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+    background-attachment: fixed;
+}
+
+.login-shell__main {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 28rem;
+    margin: 0 auto;
+    padding: 2rem 1rem 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+@media (min-width: 768px) {
+    .login-shell__main {
+        padding-top: 3rem;
+        padding-bottom: 4rem;
+    }
+}
+
+.login-shell__logo-block {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 0.875rem;
+    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--background));
+    box-shadow: 0 1px 2px 0 hsl(var(--foreground) / 0.05);
+    overflow: hidden;
+}
+
+.login-shell__logo-block > img,
+.login-shell__logo-block > svg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.login-shell__title {
+    margin: 0;
+    text-align: center;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+}
+
+@media (min-width: 768px) {
+    .login-shell__title {
+        font-size: 1.875rem;
+        line-height: 2.25rem;
+    }
+}
+
+.login-shell__subtitle {
+    margin: 0;
+    text-align: center;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Page-scoped header, footer and navigation. */
+.login-shell__header {
+    width: 100%;
+    border-bottom: 1px solid hsl(var(--border));
+    /* Fallback (no backdrop-filter): solid surface meeting WCAG AA contrast
+     * against `--foreground` text. */
+    background-color: hsl(var(--background));
+}
+
+@supports (backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0)) {
+    .login-shell__header {
+        background-color: hsl(var(--background) / 0.75);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        backdrop-filter: saturate(180%) blur(12px);
+    }
+}
+
+.login-shell__brand {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
+}
+
+.login-shell__nav {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.login-shell__nav a {
+    color: hsl(var(--muted-foreground));
+    text-decoration: none;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition: color 150ms ease;
+}
+
+.login-shell__nav a:hover,
+.login-shell__nav a:focus-visible {
+    color: hsl(var(--foreground));
+}
+
+.login-shell__lang-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Tenant pill — small badge above the tab control. */
+.login-shell__tenant-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--muted) / 0.6);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: hsl(var(--foreground));
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.login-shell__tenant-pill-label {
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
+.login-shell__tenant-pill-host {
+    color: hsl(var(--foreground));
+    font-weight: 500;
+}
+
+/* Footer — terms paragraph + utility links row. */
+.login-shell__footer {
+    width: 100%;
+    margin-top: 2rem;
+    padding: 1.25rem 1rem 2rem;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    border-top: 1px solid hsl(var(--border));
+}
+
+.login-shell__terms-notice {
+    margin: 0 auto 0.75rem;
+    max-width: 36rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.login-shell__terms-notice a {
+    color: hsl(var(--foreground));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.login-shell__terms-notice a:hover,
+.login-shell__terms-notice a:focus-visible {
+    color: hsl(var(--primary));
+}
+
+.login-shell__footer-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.login-shell__footer-link {
+    color: hsl(var(--muted-foreground));
+    text-decoration: none;
+    transition: color 150ms ease;
+}
+
+.login-shell__footer-link:hover,
+.login-shell__footer-link:focus-visible {
+    color: hsl(var(--foreground));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.login-shell__footer-link:visited {
+    color: hsl(var(--muted-foreground));
+}
+
+.login-shell__footer-separator {
+    display: inline-block;
+    color: hsl(var(--border));
+    user-select: none;
+}
+
+/* Login card — rounded surface that holds the tab control + form, sits on
+ * top of the shell gradient. */
+.login-card {
+    width: 100%;
+    max-width: 28rem;
+    border-radius: 0.875rem;
+    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    padding: 1.5rem;
+    box-shadow:
+        0 10px 15px -3px hsl(var(--foreground) / 0.08),
+        0 4px 6px -4px hsl(var(--foreground) / 0.06);
+}
+
+@media (min-width: 768px) {
+    .login-card {
+        padding: 2rem;
+    }
+}
+
+/* Input wrapper that absolutely positions a leading icon at the input's
+ * left padding region. Pairs with Tailwind `pl-10` on the <input>. */
+.input-with-icon {
+    position: relative;
+    display: block;
+}
+
+.input-with-icon > .input-with-icon__icon,
+.input-with-icon > [data-icon-leading],
+.input-with-icon > svg:first-child,
+.input-with-icon > .lucide {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    color: hsl(var(--muted-foreground));
+}
+
+.input-with-icon > input:focus-visible ~ .input-with-icon__icon,
+.input-with-icon:focus-within > .input-with-icon__icon,
+.input-with-icon:focus-within > [data-icon-leading],
+.input-with-icon:focus-within > svg:first-child,
+.input-with-icon:focus-within > .lucide {
+    color: hsl(var(--foreground));
+}
+
+/* Violet/blue gradient submit button. Uses the existing `--primary` token so
+ * the gradient picks up the design system's accent (no inline literals). */
+.btn-gradient-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: 0;
+    border-radius: calc(var(--radius) - 2px);
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    color: hsl(var(--primary-foreground));
+    background-image: linear-gradient(
+        135deg,
+        hsl(var(--primary)) 0%,
+        hsl(var(--primary) / 0.85) 100%
+    );
+    background-color: hsl(var(--primary));
+    cursor: pointer;
+    transition: filter 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+    --tw-ring-offset-color: hsl(var(--background));
+}
+
+.btn-gradient-primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+    box-shadow: 0 8px 16px -8px hsl(var(--primary) / 0.5);
+}
+
+.btn-gradient-primary:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+}
+
+.btn-gradient-primary:disabled,
+.btn-gradient-primary[aria-busy="true"] {
+    opacity: 0.7;
+    cursor: not-allowed;
+    filter: none;
+    box-shadow: none;
+}

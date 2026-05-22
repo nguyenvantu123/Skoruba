@@ -1,0 +1,47 @@
+@using Microsoft.AspNetCore.Mvc.Localization
+@inject IViewLocalizer Localizer
+@{
+    var returnUrl = ViewData["PhoneOtpReturnUrl"] as string ?? string.Empty;
+    var phoneOtpError = (ViewData["PhoneOtpError"] as string)
+                        ?? (TempData.Peek("PhoneOtpError") as string);
+    var hasError = !string.IsNullOrEmpty(phoneOtpError);
+}
+
+<form method="post" action="/Account/LoginWithPhone/Request" novalidate>
+    @Html.AntiForgeryToken()
+
+    @if (hasError)
+    {
+        <div class="alert alert-danger" role="alert">
+            @phoneOtpError
+        </div>
+    }
+
+    <div class="form-group">
+        <label for="phoneOtpPhoneNumber">@Localizer["LoginWithPhone.PhoneLabel"]</label>
+        <div class="input-with-icon relative">
+            <lucideicon name="phone" class="lucide-icon-leading h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input type="tel"
+                   inputmode="tel"
+                   autocomplete="tel"
+                   id="phoneOtpPhoneNumber"
+                   name="PhoneNumber"
+                   class="form-control pl-10"
+                   required />
+        </div>
+    </div>
+
+    <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+
+    <!-- Honeypot: visually hidden, must remain empty for legitimate users -->
+    <input type="text"
+           name="website"
+           class="is-honeypot"
+           tabindex="-1"
+           autocomplete="off"
+           aria-hidden="true" />
+
+    <button type="submit" class="btn btn-primary btn-gradient-primary">
+        @Localizer["LoginWithPhone.RequestSubmit"]
+    </button>
+</form>

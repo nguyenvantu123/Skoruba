@@ -1,0 +1,20 @@
+@using Microsoft.AspNetCore.Mvc.Localization
+@using TenantInfrastructure.Abstractions
+@inject IViewLocalizer Localizer
+@inject ITenantContextAccessor TenantContextAccessor
+@{
+    if (TenantContextAccessor.Current == null)
+    {
+        return;
+    }
+
+    var label = Localizer["Login.TenantPillLabel"].Value;
+    var host = Context.Request.Host.Value ?? string.Empty;
+    var ariaLabelTemplate = Localizer["Login.TenantPillAriaLabel"].Value;
+    var ariaLabel = string.Format("{0} {1}", ariaLabelTemplate, host);
+}
+
+<span class="login-shell__tenant-pill" aria-label="@ariaLabel">
+    <span class="login-shell__tenant-pill-label">@label</span>
+    <span class="login-shell__tenant-pill-host">@host</span>
+</span>

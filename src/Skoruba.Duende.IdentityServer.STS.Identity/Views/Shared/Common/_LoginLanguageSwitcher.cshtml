@@ -1,0 +1,78 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Builder
+@using Microsoft.AspNetCore.Localization
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Microsoft.Extensions.Options
+@using Skoruba.Duende.IdentityServer.STS.Identity.Models.Login
+@model LoginShellHeaderModel
+@inject IViewLocalizer Localizer
+@inject IOptions<RequestLocalizationOptions> LocOptions
+@{
+    // Hide the switcher entirely when fewer than two cultures are configured so
+    // that no empty dropdown is shown to the user (Requirement 6.8).
+    var supportedCultures = LocOptions.Value.SupportedUICultures ?? new List<CultureInfo>();
+    if (supportedCultures.Count < 2)
+    {
+        return;
+    }
+
+    // Read current path/query from the model when supplied by _LoginHeader; fall
+    // back to the live HttpContext request so the partial keeps working when it
+    // is rendered without a model (Requirement 6.3).
+    var currentPath = Model?.CurrentPath;
+    if (string.IsNullOrEmpty(currentPath))
+    {
+        currentPath = Context.Request.Path.HasValue ? Context.Request.Path.Value : "/";
+    }
+
+    var currentQuery = Model?.CurrentQuery;
+    if (string.IsNullOrEmpty(currentQuery))
+    {
+        currentQuery = Context.Request.QueryString.HasValue ? Context.Request.QueryString.Value : string.Empty;
+    }
+
+    var returnUrl = currentPath + currentQuery;
+
+    // Pre-select the option matching the resolved request culture (Requirement 6.4).
+    var requestCulture = Context.Features.Get<IRequestCultureFeature>();
+    var currentCultureName = requestCulture?.RequestCulture.UICulture.Name;
+
+    // Each option's display text uses NativeName, falling back to DisplayName when
+    // NativeName is whitespace (Requirement 6.7).
+    static string GetOptionText(CultureInfo culture)
+    {
+        var native = culture.NativeName;
+        return string.IsNullOrWhiteSpace(native) ? culture.DisplayName : native;
+    }
+
+    // Resolved via the existing Layout.Language key — same IViewLocalizer pattern
+    // used by the sibling SelectLanguage.cshtml partial. Falls back to the key
+    // name itself if the resource is missing (Requirement 6.9, 8.7).
+    var ariaLabel = Localizer["Layout.Language"].Value;
+}
+
+<form id="selectLanguageForm"
+      method="post"
+      action="/Home/SetLanguage"
+      role="form"
+      aria-label="@ariaLabel"
+      class="login-shell__lang-switcher flex items-center gap-2">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="returnUrl" value="@returnUrl" />
+    <span class="login-shell__lang-icon inline-flex items-center" aria-hidden="true">
+        <lucideicon name="languages" class="inline-block h-4 w-4" />
+    </span>
+    <select id="cultureSelect" name="culture" class="select min-w-[150px]">
+        @foreach (var culture in supportedCultures)
+        {
+            if (string.Equals(culture.Name, currentCultureName, StringComparison.OrdinalIgnoreCase))
+            {
+                <option value="@culture.Name" selected="selected">@GetOptionText(culture)</option>
+            }
+            else
+            {
+                <option value="@culture.Name">@GetOptionText(culture)</option>
+            }
+        }
+    </select>
+</form>

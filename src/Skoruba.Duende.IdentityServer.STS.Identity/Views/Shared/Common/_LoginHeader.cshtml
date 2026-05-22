@@ -1,0 +1,56 @@
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Skoruba.Duende.IdentityServer.STS.Identity.Configuration.Interfaces
+@model Skoruba.Duende.IdentityServer.STS.Identity.Models.Login.LoginShellHeaderModel
+@inject IViewLocalizer Localizer
+@inject IRootConfiguration RootConfiguration
+@{
+    static string ResolveHref(string url) => string.IsNullOrWhiteSpace(url) ? "#" : url;
+
+    var admin = RootConfiguration.AdminConfiguration;
+    var brandTitle = admin.PageTitle;
+    var productsHref = ResolveHref(admin.MarketingProductsUri);
+    var featuresHref = ResolveHref(admin.MarketingFeaturesUri);
+    var pricingHref = ResolveHref(admin.MarketingPricingUri);
+}
+
+<header class="login-shell__header w-full">
+    <div class="flex items-center justify-between gap-4 px-6 py-4">
+        @* Brand region (left) — always visible per Requirement 1.2 *@
+        <div class="login-shell__brand text-base font-semibold tracking-tight">
+            @brandTitle
+        </div>
+
+        @* Nav region (center) — visible at md+ breakpoint *@
+        <nav class="login-shell__nav hidden md:flex items-center gap-6">
+            <a href="@productsHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Products"]</a>
+            <a href="@featuresHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Features"]</a>
+            <a href="@pricingHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Pricing"]</a>
+        </nav>
+
+        @* Right region: primary CTA (always visible) + language switcher (md+) + mobile disclosure *@
+        <div class="flex items-center gap-3">
+            <a href="#local-login-form"
+               class="btn-gradient-primary inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium">
+                @Localizer["Login.HeaderCtaLogin"]
+            </a>
+
+            <div class="login-shell__lang-switcher hidden md:flex">
+                <partial name="Common/_LoginLanguageSwitcher" model="Model" />
+            </div>
+
+            @* Below md breakpoint, collapse nav + language switcher into native <details>/<summary> *@
+            <details class="login-shell__nav-disclosure md:hidden relative">
+                <summary class="list-none cursor-pointer select-none btn-outline inline-flex items-center gap-2 rounded-md border border-border px-3 py-2">
+                    <lucideicon name="menu" class="h-5 w-5" aria-hidden="true" />
+                    <span class="sr-only">@brandTitle</span>
+                </summary>
+                <div class="absolute right-0 mt-2 z-50 flex min-w-[14rem] flex-col gap-3 rounded-md border border-border bg-background p-3 shadow-lg">
+                    <a href="@productsHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Products"]</a>
+                    <a href="@featuresHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Features"]</a>
+                    <a href="@pricingHref" class="text-sm text-muted-foreground hover:text-foreground">@Localizer["Login.Nav.Pricing"]</a>
+                    <partial name="Common/_LoginLanguageSwitcher" model="Model" />
+                </div>
+            </details>
+        </div>
+    </div>
+</header>

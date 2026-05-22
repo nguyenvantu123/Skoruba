@@ -25,6 +25,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
@@ -78,28 +79,63 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Helpers
                 });
 
             var cultureConfiguration = configuration.GetSection(nameof(CultureConfiguration)).Get<CultureConfiguration>();
-            services.Configure<RequestLocalizationOptions>(
-                opts =>
+
+            // Centralize culture/default resolution in a pure utility so this method stays declarative
+            // and the logic is unit/property-testable. See Requirements 7.1, 7.2, 7.3, 7.7.
+            var resolvedCultures = CultureConfigurationResolver.Resolve(cultureConfiguration);
+
+            // Surface unparseable culture codes to operations at startup (Requirement 7.7).
+            // Prefer ILogger; if logging is not yet wired up, fall back to Console.Error per the documented fallback.
+            if (resolvedCultures.InvalidCultureCodes.Count > 0)
             {
-                // If cultures are specified in the configuration, use them (making sure they are among the available cultures),
-                // otherwise use all the available cultures
-                var supportedCultureCodes = (cultureConfiguration?.Cultures?.Count > 0 ?
-                    cultureConfiguration.Cultures.Intersect(CultureConfiguration.AvailableCultures) :
-                    CultureConfiguration.AvailableCultures).ToArray();
+                ILogger? cultureLogger = null;
+                try
+                {
+                    var loggerFactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
+                    cultureLogger = loggerFactory?.CreateLogger("Skoruba.Duende.IdentityServer.STS.Identity.Localization");
+                }
+                catch
+                {
+                    // Logger acquisition is best-effort at startup. Fallback below ensures the operator still sees the error.
+                    cultureLogger = null;
+                }
 
-                if (!supportedCultureCodes.Any()) supportedCultureCodes = CultureConfiguration.AvailableCultures;
-                var supportedCultures = supportedCultureCodes.Select(c => new CultureInfo(c)).ToList();
+                foreach (var invalidCode in resolvedCultures.InvalidCultureCodes)
+                {
+                    if (cultureLogger != null)
+                    {
+                        cultureLogger.LogError(
+                            "Invalid culture code in CultureConfiguration:Cultures: '{InvalidCultureCode}'. The culture has been skipped.",
+                            invalidCode);
+                    }
+                    else
+                    {
+                        // Documented fallback per Requirement 7.7 when no ILoggerFactory is available at startup.
+                        Console.Error.WriteLine(
+                            $"[Localization] Invalid culture code in CultureConfiguration:Cultures: '{invalidCode}'. The culture has been skipped.");
+                    }
+                }
+            }
 
-                // If the default culture is specified use it, otherwise use CultureConfiguration.DefaultRequestCulture ("en")
-                var defaultCultureCode = string.IsNullOrEmpty(cultureConfiguration?.DefaultCulture) ?
-                    CultureConfiguration.DefaultRequestCulture : cultureConfiguration?.DefaultCulture;
+            services.Configure<RequestLocalizationOptions>(opts =>
+            {
+                opts.DefaultRequestCulture = new RequestCulture(resolvedCultures.DefaultCulture);
+                opts.SupportedCultures = resolvedCultures.SupportedCultures.ToList();
+                opts.SupportedUICultures = resolvedCultures.SupportedCultures.ToList();
 
-                // If the default culture is not among the supported cultures, use the first supported culture as default
-                if (!supportedCultureCodes.Contains(defaultCultureCode)) defaultCultureCode = supportedCultureCodes.FirstOrDefault();
-
-                opts.DefaultRequestCulture = new RequestCulture(defaultCultureCode);
-                opts.SupportedCultures = supportedCultures;
-                opts.SupportedUICultures = supportedCultures;
+                // Provider order: OIDC ui_locales > query string > cookie > Accept-Language.
+                // The OIDC bridge runs first so an authorize-time `ui_locales` request from
+                // a relying party wins over any inherited/sticky preference. Query string
+                // (`?culture=` / `?ui-culture=`) remains second for non-OIDC callers.
+                // Cookie keeps the user's choice across pages within the session.
+                // Accept-Language is the final fallback driven by browser preferences.
+                opts.RequestCultureProviders = new List<IRequestCultureProvider>
+                {
+                    new OidcUiLocalesRequestCultureProvider(),
+                    new QueryStringRequestCultureProvider(),
+                    new CookieRequestCultureProvider(),
+                    new AcceptLanguageHeaderRequestCultureProvider()
+                };
             });
 
             return mvcBuilder;
@@ -571,6 +607,75 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.Helpers
         {
             var options = app.ApplicationServices.GetService<IOptions<RequestLocalizationOptions>>();
             app.UseRequestLocalization(options.Value);
+
+            // OIDC ui_locales bridge — when /connect/authorize (or any handler) resolves
+            // a culture from the `ui_locales` parameter, persist that choice to the
+            // standard `.AspNetCore.Culture` cookie so subsequent navigations within the
+            // STS host (the Login_Page, Phone_Verify_Page, error pages) keep the language
+            // even after the relying party's authorize redirect has consumed the
+            // ui_locales parameter. Cookie attributes mirror what `HomeController.SetLanguage`
+            // emits (1-year expiry, Path=/, IsEssential=true).
+            app.Use(async (ctx, next) =>
+            {
+                try
+                {
+                    var feature = ctx.Features.Get<IRequestCultureFeature>();
+                    var providerType = feature?.Provider?.GetType();
+                    if (providerType == typeof(OidcUiLocalesRequestCultureProvider) && feature is not null)
+                    {
+                        var existing = ctx.Request.Cookies[CookieRequestCultureProvider.DefaultCookieName];
+                        var desired = CookieRequestCultureProvider.MakeCookieValue(feature.RequestCulture);
+                        if (!string.Equals(existing, desired, StringComparison.Ordinal))
+                        {
+                            ctx.Response.Cookies.Append(
+                                CookieRequestCultureProvider.DefaultCookieName,
+                                desired,
+                                new CookieOptions
+                                {
+                                    Expires = DateTimeOffset.UtcNow.AddYears(1),
+                                    IsEssential = true,
+                                    Path = "/",
+                                    HttpOnly = false,
+                                    SameSite = SameSiteMode.Lax,
+                                    Secure = ctx.Request.IsHttps
+                                });
+                        }
+                    }
+                }
+                catch
+                {
+                    // Cookie persistence is best-effort. A failure here must not affect
+                    // the request — the user's culture for *this* request is already set
+                    // by the provider; only the sticky-across-pages effect is lost.
+                }
+
+                await next();
+            });
+
+            // Login UI Redesign + Multi-language — Requirement 5.12: scan the localization
+            // manifest once at startup and emit one Warning per missing (resource type, key,
+            // culture) tuple under logger category "Localization". The validator itself
+            // swallows every exception internally; the wiring here is also try/catch-guarded
+            // so that a misconfigured DI graph or logger factory cannot crash the host.
+            try
+            {
+                var services = app.ApplicationServices;
+                var supportedUICultures = options?.Value?.SupportedUICultures;
+                var loggerFactory = services.GetService<ILoggerFactory>();
+
+                if (services != null && supportedUICultures != null && loggerFactory != null)
+                {
+                    var manifestLogger = loggerFactory.CreateLogger("Localization");
+                    LocalizationManifestValidator.ValidateAtStartup(services, supportedUICultures, manifestLogger);
+                }
+            }
+            catch
+            {
+                // Defense-in-depth: localization manifest validation must never block startup
+                // or affect request handling. The validator already swallows internally; this
+                // outer guard protects the surrounding wiring (service resolution, logger
+                // factory creation) from ever surfacing an exception.
+            }
         }
 
         /// <summary>
