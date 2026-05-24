@@ -216,4 +216,34 @@
   <data name="Login.Or" xml:space="preserve">
     <value>Or continue with</value>
   </data>
+  <data name="LoginWithPhone.TabsLabel" xml:space="preserve">
+    <value>Sign-in method</value>
+  </data>
+  <data name="LoginWithPhone.TabAccount" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="LoginWithPhone.TabPhone" xml:space="preserve">
+    <value>Phone number</value>
+  </data>
+  <data name="TenantStatusLoadingTitle" xml:space="preserve">
+    <value>Checking tenant…</value>
+  </data>
+  <data name="TenantStatusLoadingMessage" xml:space="preserve">
+    <value>Verifying tenant configuration.</value>
+  </data>
+  <data name="TenantStatusReadyPrefix" xml:space="preserve">
+    <value>Signed in as</value>
+  </data>
+  <data name="TenantStatusReadyMessage" xml:space="preserve">
+    <value>Tenant ready.</value>
+  </data>
+  <data name="TenantStatusMissingTitle" xml:space="preserve">
+    <value>Tenant not found</value>
+  </data>
+  <data name="TenantStatusErrorTitle" xml:space="preserve">
+    <value>Tenant lookup failed</value>
+  </data>
+  <data name="TenantStatusFallbackMessage" xml:space="preserve">
+    <value>Cannot reach tenant directory. Please retry.</value>
+  </data>
 </root>

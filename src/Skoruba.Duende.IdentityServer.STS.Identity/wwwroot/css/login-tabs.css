@@ -169,6 +169,22 @@
     background-color: hsl(var(--background));
 }
 
+/* Floating language switcher — replaces the full header bar with a small
+ * top-right control so the login chrome stays clean and focused on the form. */
+.login-shell__lang-floating {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 5;
+}
+
+@media (min-width: 768px) {
+    .login-shell__lang-floating {
+        top: 1.25rem;
+        right: 1.5rem;
+    }
+}
+
 @supports (backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0)) {
     .login-shell__header {
         background-color: hsl(var(--background) / 0.75);
@@ -323,32 +339,249 @@
 }
 
 /* Input wrapper that absolutely positions a leading icon at the input's
- * left padding region. Pairs with Tailwind `pl-10` on the <input>. */
+ * left padding region. The wrapper itself enforces left-padding on the input
+ * so it does not depend on Tailwind's `pl-10` utility being present in the
+ * loaded CSS bundle. */
 .input-with-icon {
     position: relative;
     display: block;
 }
 
-.input-with-icon > .input-with-icon__icon,
-.input-with-icon > [data-icon-leading],
-.input-with-icon > svg:first-child,
-.input-with-icon > .lucide {
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1rem;
-    height: 1rem;
-    pointer-events: none;
-    color: hsl(var(--muted-foreground));
+/* Force enough left padding for the absolute-positioned icon (icon left = 0.875rem,
+ * size = 1.125rem -> reserve ~2.5rem). Apply to every immediate input child so
+ * the rule works regardless of utility classes a caller adds. */
+.input-with-icon > input,
+.input-with-icon > select,
+.input-with-icon > textarea {
+    padding-left: 2.5rem !important;
 }
 
-.input-with-icon > input:focus-visible ~ .input-with-icon__icon,
+/* Baseline input styling for the login shell so phone / OTP / username fields
+ * never collapse to browser-default heights when Tailwind/Bootstrap utility
+ * classes (e.g. `form-control`, `input`) aren't present in the loaded bundle. */
+.login-card .input-with-icon > input,
+.login-card input.input,
+.login-card input.form-control,
+.login-card input[type="text"],
+.login-card input[type="email"],
+.login-card input[type="tel"],
+.login-card input[type="password"],
+.login-card input[type="number"] {
+    width: 100%;
+    height: 2.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    padding-right: 0.875rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background-color: hsl(var(--background)) !important;
+    color: hsl(var(--foreground)) !important;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.login-card .input-with-icon > input:focus-visible,
+.login-card input.input:focus-visible,
+.login-card input.form-control:focus-visible,
+.login-card input[type="text"]:focus-visible,
+.login-card input[type="email"]:focus-visible,
+.login-card input[type="tel"]:focus-visible,
+.login-card input[type="password"]:focus-visible,
+.login-card input[type="number"]:focus-visible {
+    outline: none;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
+}
+
+/* Browser autofill (Chrome/Edge) injects a yellow background that ignores the
+ * page's CSS — pin the autofill colors to our theme so the field doesn't
+ * suddenly switch to white-on-white when the user accepts a saved login. */
+.login-card .input-with-icon > input:-webkit-autofill,
+.login-card input:-webkit-autofill {
+    -webkit-text-fill-color: hsl(var(--foreground));
+    -webkit-box-shadow: 0 0 0 1000px hsl(var(--background)) inset;
+    caret-color: hsl(var(--foreground));
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+.login-card .input-with-icon > input::placeholder,
+.login-card input::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 0.7;
+}
+
+/* Form-group / form-item vertical rhythm so labels and inputs aren't crammed
+ * together and the submit button keeps a consistent gap from the last field. */
+.login-card .form-group,
+.login-card .form-item {
+    display: block;
+    margin-bottom: 1.25rem;
+}
+
+.login-card .form-group > label,
+.login-card .form-item > label,
+.login-card .form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+}
+
+.login-card form > button[type="submit"]:not(.btn-link),
+.login-card .form-group + button[type="submit"]:not(.btn-link),
+.login-card .form-item + button[type="submit"]:not(.btn-link) {
+    margin-top: 0.5rem;
+}
+
+/* Phone-with-country-code composite: <select dialCode> + <input local number>.
+ * The two share a single visual bordered shell so they read as one field. */
+.phone-input-group {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background-color: hsl(var(--background));
+    overflow: hidden;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.phone-input-group:focus-within {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
+}
+
+.phone-input-group__dial {
+    flex: 0 0 auto;
+    height: 2.75rem;
+    padding: 0 0.625rem;
+    border: 0;
+    border-right: 1px solid hsl(var(--border));
+    background-color: hsl(var(--muted) / 0.4);
+    color: hsl(var(--foreground));
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    padding-right: 1.5rem;
+    min-width: 6.5rem;
+    /* Use an emoji-aware font stack so regional-indicator flag pairs render in
+     * full color (Apple Color Emoji on macOS/iOS, Segoe UI Emoji on Windows,
+     * Noto Color Emoji on Linux/Android). Falling back to system-ui keeps the
+     * dial code itself in the page font. */
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+                 "Twemoji Mozilla", "EmojiOne Color", "Android Emoji",
+                 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-emoji: emoji;
+}
+
+.phone-input-group__dial:focus-visible {
+    outline: none;
+}
+
+.phone-input-group__local {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Override the standalone `.input-with-icon > input` border + radius rules for the
+ * input that lives inside the composite shell — the shell already provides them. */
+.phone-input-group__local > input {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    height: 2.75rem;
+    background-color: transparent !important;
+}
+
+.phone-input-group__local > input:focus-visible {
+    box-shadow: none !important;
+    border: 0 !important;
+}
+
+.input-with-icon > .input-with-icon__icon,
+.input-with-icon > [data-icon-leading],
+.input-with-icon > svg,
+.input-with-icon > .lucide,
+.input-with-icon > .login-shell__input-icon {
+    position: absolute;
+    left: 0.875rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.125rem;
+    height: 1.125rem;
+    pointer-events: none;
+    color: hsl(var(--muted-foreground));
+    z-index: 2;
+    /* Lucide SVGs use stroke-based rendering — make sure stroke matches the
+     * resolved foreground color rather than the input's text color. */
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Keep leading icons visible at all times — including while the input has focus.
+ * Earlier rules dimmed the icon to muted-foreground and re-colored to foreground
+ * on :focus-within, which on a dark card made the icon nearly invisible during
+ * typing. Force a stable, comfortably-bright color regardless of focus state. */
 .input-with-icon:focus-within > .input-with-icon__icon,
 .input-with-icon:focus-within > [data-icon-leading],
-.input-with-icon:focus-within > svg:first-child,
-.input-with-icon:focus-within > .lucide {
+.input-with-icon:focus-within > svg,
+.input-with-icon:focus-within > .lucide,
+.input-with-icon:focus-within > .login-shell__input-icon {
     color: hsl(var(--foreground));
+    opacity: 0.85;
+}
+
+/* When the wrapper also hosts a trailing button (e.g. password show/hide
+ * toggle), reserve right-padding so input text never overlaps the button. */
+.input-with-icon:has(> button[type="button"]) > input {
+    padding-right: 3rem !important;
+}
+
+/* Position the trailing toggle button when Tailwind utilities (`absolute right-1`)
+ * are not available in the loaded stylesheet. */
+.input-with-icon > button[type="button"] {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    width: 2rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0.375rem;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    z-index: 3;
+}
+
+.input-with-icon > button[type="button"]:hover,
+.input-with-icon > button[type="button"]:focus-visible {
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--muted) / 0.6);
+}
+
+.input-with-icon > button[type="button"] > span > svg {
+    width: 1rem;
+    height: 1rem;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* Violet/blue gradient submit button. Uses the existing `--primary` token so

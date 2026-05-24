@@ -5,9 +5,37 @@
     var phoneOtpError = (ViewData["PhoneOtpError"] as string)
                         ?? (TempData.Peek("PhoneOtpError") as string);
     var hasError = !string.IsNullOrEmpty(phoneOtpError);
+
+    // Curated list of dial codes covering the bulk of expected traffic. Each option
+    // carries an ISO-3166 region code in `data-region` so the future server-side
+    // normalizer call can fall back to that region when the input has no '+' prefix
+    // (e.g. user pastes a local number). The Flag column holds the country flag as
+    // a regional-indicator emoji pair derived from the ISO-3166 alpha-2 code, so we
+    // do not need to ship any image asset to render the flag inside the <option>.
+    var dialCodes = new[]
+    {
+        new { Code = "+84",  Region = "VN", Flag = "🇻🇳", Label = "Vietnam (+84)" },
+        new { Code = "+1",   Region = "US", Flag = "🇺🇸", Label = "United States / Canada (+1)" },
+        new { Code = "+44",  Region = "GB", Flag = "🇬🇧", Label = "United Kingdom (+44)" },
+        new { Code = "+61",  Region = "AU", Flag = "🇦🇺", Label = "Australia (+61)" },
+        new { Code = "+62",  Region = "ID", Flag = "🇮🇩", Label = "Indonesia (+62)" },
+        new { Code = "+63",  Region = "PH", Flag = "🇵🇭", Label = "Philippines (+63)" },
+        new { Code = "+65",  Region = "SG", Flag = "🇸🇬", Label = "Singapore (+65)" },
+        new { Code = "+66",  Region = "TH", Flag = "🇹🇭", Label = "Thailand (+66)" },
+        new { Code = "+60",  Region = "MY", Flag = "🇲🇾", Label = "Malaysia (+60)" },
+        new { Code = "+81",  Region = "JP", Flag = "🇯🇵", Label = "Japan (+81)" },
+        new { Code = "+82",  Region = "KR", Flag = "🇰🇷", Label = "South Korea (+82)" },
+        new { Code = "+86",  Region = "CN", Flag = "🇨🇳", Label = "China (+86)" },
+        new { Code = "+852", Region = "HK", Flag = "🇭🇰", Label = "Hong Kong (+852)" },
+        new { Code = "+886", Region = "TW", Flag = "🇹🇼", Label = "Taiwan (+886)" },
+        new { Code = "+91",  Region = "IN", Flag = "🇮🇳", Label = "India (+91)" },
+        new { Code = "+33",  Region = "FR", Flag = "🇫🇷", Label = "France (+33)" },
+        new { Code = "+49",  Region = "DE", Flag = "🇩🇪", Label = "Germany (+49)" },
+        new { Code = "+7",   Region = "RU", Flag = "🇷🇺", Label = "Russia (+7)" },
+    };
 }
 
-<form method="post" action="/Account/LoginWithPhone/Request" novalidate>
+<form id="phone-request-form" method="post" action="/Account/LoginWithPhone/Request" novalidate>
     @Html.AntiForgeryToken()
 
     @if (hasError)
@@ -18,17 +46,44 @@
     }
 
     <div class="form-group">
-        <label for="phoneOtpPhoneNumber">@Localizer["LoginWithPhone.PhoneLabel"]</label>
-        <div class="input-with-icon relative">
-            <lucideicon name="phone" class="lucide-icon-leading h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input type="tel"
-                   inputmode="tel"
-                   autocomplete="tel"
-                   id="phoneOtpPhoneNumber"
-                   name="PhoneNumber"
-                   class="form-control pl-10"
-                   required />
+        <label for="phoneOtpLocalNumber">@Localizer["LoginWithPhone.PhoneLabel"]</label>
+        <div class="phone-input-group">
+            <select id="phoneOtpDialCode"
+                    name="DialCode"
+                    aria-label="@Localizer["LoginWithPhone.DialCodeLabel"]"
+                    class="phone-input-group__dial">
+                @foreach (var dial in dialCodes)
+                {
+                    if (dial.Region == "VN")
+                    {
+                        <option value="@dial.Code"
+                                data-region="@dial.Region"
+                                title="@dial.Label"
+                                selected>@dial.Flag&nbsp;@dial.Code</option>
+                    }
+                    else
+                    {
+                        <option value="@dial.Code"
+                                data-region="@dial.Region"
+                                title="@dial.Label">@dial.Flag&nbsp;@dial.Code</option>
+                    }
+                }
+            </select>
+            <div class="input-with-icon relative phone-input-group__local">
+                <lucideicon name="phone" class="lucide-icon-leading" aria-hidden="true" />
+                <input type="tel"
+                       inputmode="tel"
+                       autocomplete="tel-national"
+                       id="phoneOtpLocalNumber"
+                       placeholder="@Localizer["LoginWithPhone.PhonePlaceholder"]"
+                       required />
+            </div>
         </div>
+
+        @* Hidden field that actually carries the E.164-formatted value to the controller.
+           Filled by the inline script below on submit; server-side fallback (no JS) is
+           handled by the libphonenumber DefaultRegion=VN configuration. *@
+        <input type="hidden" id="phoneOtpPhoneNumber" name="PhoneNumber" value="" />
     </div>
 
     <input type="hidden" name="ReturnUrl" value="@returnUrl" />
@@ -45,3 +100,5 @@
         @Localizer["LoginWithPhone.RequestSubmit"]
     </button>
 </form>
+
+<script src="~/js/phone-dial-code.js" defer asp-append-version="true"></script>

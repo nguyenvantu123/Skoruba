@@ -35,7 +35,9 @@
 }
 
 <div class="login-shell login-shell--gradient">
-    @await Html.PartialAsync("Common/_LoginHeader", headerModel)
+    <div class="login-shell__lang-floating">
+        @await Html.PartialAsync("Common/_LoginLanguageSwitcher", headerModel)
+    </div>
 
     <main class="login-shell__main">
         <section class="login-shell__logo-block flex flex-col items-center text-center gap-2 mb-6">

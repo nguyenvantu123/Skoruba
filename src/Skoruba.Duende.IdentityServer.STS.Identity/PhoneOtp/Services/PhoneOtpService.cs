@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
@@ -89,9 +91,16 @@ public sealed class PhoneOtpService : IPhoneOtpService
             return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
         }
 
-        // 5. Lookup user
+        // 5. Lookup user — match by E.164 first (canonical post-onboarding), fall
+        //    back to legacy national-format candidates so users whose phone was
+        //    saved before the OTP feature went live can still log in.
+        //    Each candidate is tried with PhoneNumberConfirmed=true and the
+        //    request's tenant scope to keep the security boundary intact.
+        var phoneCandidates = BuildPhoneLookupCandidates(e164, request.RawPhone);
         var users = await _userManager.Users
-            .Where(u => u.PhoneNumber == e164 && u.PhoneNumberConfirmed && u.TenantKey == request.TenantKey)
+            .Where(u => phoneCandidates.Contains(u.PhoneNumber)
+                        && u.PhoneNumberConfirmed
+                        && u.TenantKey == request.TenantKey)
             .ToListAsync(ct);
 
         if (users.Count != 1)
@@ -319,6 +328,78 @@ public sealed class PhoneOtpService : IPhoneOtpService
         if (string.IsNullOrEmpty(e164) || e164.Length < 4)
             return e164 ?? string.Empty;
         return e164[^4..];
+    }
+
+    /// <summary>
+    /// Builds the set of phone-number string variants the user-lookup query should
+    /// try in order to find a matching <c>AspNetUsers.PhoneNumber</c> row.
+    /// <para>
+    /// Canonical storage is E.164 (e.g. <c>+84334336232</c>), but pre-OTP onboarding
+    /// flows historically wrote the phone in national format (e.g. <c>0334336232</c>)
+    /// or with a stray space / dash. To keep the OTP feature usable against legacy
+    /// data without a one-shot migration, we try several deterministic variants
+    /// derived from the same parsed E.164:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><c>+84334336232</c> — canonical E.164 (always first).</item>
+    /// <item><c>84334336232</c> — E.164 minus the leading <c>+</c>.</item>
+    /// <item><c>0334336232</c> — VN-style national format (trunk <c>0</c> + subscriber digits)
+    /// when the dial code is <c>+84</c>. Other regions get the same trunk-prefix
+    /// approximation if they happen to use <c>0</c>; otherwise we skip this variant.</item>
+    /// <item>The original raw input the user typed, trimmed.</item>
+    /// </list>
+    /// All variants are deduped (case-insensitive) and any whitespace / control
+    /// characters in the raw value are stripped to avoid empty-string matches.
+    /// </summary>
+    private static IReadOnlyList<string> BuildPhoneLookupCandidates(string e164, string rawInput)
+    {
+        var candidates = new List<string>(capacity: 4);
+
+        if (!string.IsNullOrEmpty(e164))
+        {
+            candidates.Add(e164);
+
+            // Some legacy seeders dropped the leading '+'.
+            if (e164.StartsWith('+') && e164.Length > 1)
+            {
+                candidates.Add(e164[1..]);
+            }
+
+            // VN-style national format with trunk-zero. Only emit when the country
+            // code is +84 (the only region we know uses '0' trunk + 9 subscriber
+            // digits). Generalising to every region would require libphonenumber's
+            // PhoneNumberUtil.Format(NATIONAL) which we could plug in later via the
+            // normalizer — keep this heuristic minimal for now.
+            if (e164.StartsWith("+84", StringComparison.Ordinal) && e164.Length > 3)
+            {
+                candidates.Add("0" + e164[3..]);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(rawInput))
+        {
+            // Strip every whitespace / control char but keep the user's original
+            // shape (with or without '+' / '0' prefix) so a perfect-match row in
+            // legacy data lights up even if our normalization disagreed.
+            var trimmed = new string(rawInput.Where(c => !char.IsWhiteSpace(c) && !char.IsControl(c)).ToArray());
+            if (!string.IsNullOrEmpty(trimmed))
+            {
+                candidates.Add(trimmed);
+            }
+        }
+
+        // Dedup (preserve first-seen order, case-insensitive — phone numbers are
+        // numeric so the comparer mostly matters for the '+' character).
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var deduped = new List<string>(candidates.Count);
+        foreach (var c in candidates)
+        {
+            if (seen.Add(c))
+            {
+                deduped.Add(c);
+            }
+        }
+        return deduped;
     }
 
     #endregion

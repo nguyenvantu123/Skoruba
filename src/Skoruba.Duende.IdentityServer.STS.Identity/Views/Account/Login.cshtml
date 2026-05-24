@@ -43,7 +43,9 @@
 }
 
 <div class="login-shell login-shell--gradient">
-    <partial name="Common/_LoginHeader" model="loginHeaderModel" />
+    <div class="login-shell__lang-floating">
+        <partial name="Common/_LoginLanguageSwitcher" model="loginHeaderModel" />
+    </div>
 
     <main class="login-shell__main flex min-h-[calc(100vh-300px)] flex-col items-center justify-center gap-6 py-8 px-6 md:px-10">
         <div class="w-full max-w-md">
@@ -59,18 +61,12 @@
                 <p class="login-shell__subtitle text-sm text-muted-foreground">@Localizer["Login.Subtitle"]</p>
                 @if (RootConfiguration.RegisterConfiguration.Enabled)
                 {
-                    <p class="text-sm text-muted-foreground">
-                        @Localizer["Login.NoAccount"]
-                        <a asp-action="Register" asp-controller="Account"
-                            class="text-primary hover:underline font-medium">@Localizer["Login.SignUp"]</a>
-                    </p>
+                    @* Sign-up link removed per user request — registration handled out of band. *@
                 }
             </div>
 
-            @if (TenantContextAccessor.Current != null)
-            {
-                <partial name="Common/_LoginTenantPill" />
-            }
+            @* Current-tenant pill removed per user request — tenant info is implicit
+               from the host name and does not need a visual badge here. *@
 
             @if (Model.HasTenantContext)
             {

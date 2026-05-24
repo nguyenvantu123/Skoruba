@@ -42,6 +42,9 @@
   <data name="LoginWithPhone.PhoneLabel" xml:space="preserve">
     <value>Phone number</value>
   </data>
+  <data name="LoginWithPhone.DialCodeLabel" xml:space="preserve">
+    <value>Country dial code</value>
+  </data>
   <data name="LoginWithPhone.PhonePlaceholder" xml:space="preserve">
     <value>Enter your phone number</value>
   </data>

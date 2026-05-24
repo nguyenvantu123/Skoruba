@@ -162,28 +162,28 @@ Implementation language is C# / Razor / CSS (resx for resources). No new tooling
     - All five anchors render even when their URL is null/whitespace (href becomes `#`)
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 11.1, 11.2_
 
-  - [-]* 7.5 Property test 7 — Footer anchors fall back to `#`
+  - [x]* 7.5 Property test 7 — Footer anchors fall back to `#`
     - File: `tests/Skoruba.Duende.IdentityServer.STS.Identity.UnitTests/Views/Common/LoginFooter_Property7_Tests.cs`
     - Use Razor render harness + AngleSharp to parse rendered HTML
     - **Property 7: Footer anchors fall back to `#` when URLs are null or whitespace**
     - **Validates: Requirements 4.1, 4.2, 4.4**
 
-  - [ ]* 7.6 Property test 8 — Tenant pill aria-label contains label and host
+  - [x]* 7.6 Property test 8 — Tenant pill aria-label contains label and host
     - File: `LoginTenantPill_Property8_Tests.cs`
     - **Property 8: Tenant pill aria-label contains both label and host**
     - **Validates: Requirements 1.5, 8.5**
 
-  - [ ]* 7.7 Property test 12 — Language switcher renders form, hidden inputs, select with one selected option per culture
+  - [x]* 7.7 Property test 12 — Language switcher renders form, hidden inputs, select with one selected option per culture
     - File: `LoginLanguageSwitcher_Property12_Tests.cs`
     - **Property 12: Language switcher renders one option per supported culture with the current culture pre-selected**
     - **Validates: Requirements 6.3, 6.4**
 
-  - [ ]* 7.8 Property test 13 — Option text falls back from `NativeName` to `DisplayName`
+  - [x]* 7.8 Property test 13 — Option text falls back from `NativeName` to `DisplayName`
     - File: `LoginLanguageSwitcher_Property13_Tests.cs`
     - **Property 13: Language switcher option text falls back from NativeName to DisplayName**
     - **Validates: Requirements 6.7**
 
-  - [ ]* 7.9 Property test 14 — Switcher renders empty when fewer than two cultures
+  - [x]* 7.9 Property test 14 — Switcher renders empty when fewer than two cultures
     - File: `LoginLanguageSwitcher_Property14_Tests.cs`
     - **Property 14: Language switcher hides itself when fewer than two cultures are configured**
     - **Validates: Requirements 6.8**
@@ -211,32 +211,32 @@ Implementation language is C# / Razor / CSS (resx for resources). No new tooling
     - Read the localized request-error string from `ViewData["PhoneOtpError"]` (set by controller via `IStringLocalizer`)
     - _Requirements: 2.4, 2.6, 2.7, 9.3, 9.4, 13.4_
 
-  - [ ]* 8.4 Property test 4 — External providers grid iterates one anchor per visible provider
+  - [x]* 8.4 Property test 4 — External providers grid iterates one anchor per visible provider
     - File: `Login_Property4_ExternalProviders_Tests.cs`
     - **Property 4: External providers grid iterates exactly one anchor per visible provider**
     - **Validates: Requirements 2.9, 9.3**
 
-  - [ ]* 8.5 Property test 5 — Resend button cooldown binds `disabled` and `aria-disabled`
+  - [x]* 8.5 Property test 5 — Resend button cooldown binds `disabled` and `aria-disabled`
     - File: `Verify_Property5_ResendCooldown_Tests.cs`
     - **Property 5: Resend button cooldown binds both `disabled` and `aria-disabled`**
     - **Validates: Requirements 3.6, 8.8**
 
-  - [ ]* 8.6 Property test 6 — Verify back-link preserves `returnUrl` with URL encoding
+  - [x]* 8.6 Property test 6 — Verify back-link preserves `returnUrl` with URL encoding
     - File: `Verify_Property6_BackLinkReturnUrl_Tests.cs`
     - **Property 6: Verify back-link preserves `returnUrl` with URL encoding**
     - **Validates: Requirements 3.7, 9.1**
 
-  - [ ]* 8.7 Property test 9 — Every visible input has an associated label
+  - [x]* 8.7 Property test 9 — Every visible input has an associated label
     - File: `LoginViews_Property9_InputLabels_Tests.cs`
     - **Property 9: Every visible input has an associated label**
     - **Validates: Requirements 8.3**
 
-  - [ ]* 8.8 Property test 10 — Form `name` attributes preserved per page
+  - [x]* 8.8 Property test 10 — Form `name` attributes preserved per page
     - File: `LoginViews_Property10_FormNames_Tests.cs`
     - **Property 10: Form `name` attributes preserved per page**
     - **Validates: Requirements 9.3**
 
-  - [ ]* 8.9 Property test 11 — Anti-forgery token count equals form count
+  - [x]* 8.9 Property test 11 — Anti-forgery token count equals form count
     - File: `LoginViews_Property11_AntiForgeryParity_Tests.cs`
     - **Property 11: Anti-forgery token count equals form count**
     - **Validates: Requirements 9.4, 10.8**
@@ -255,24 +255,24 @@ Implementation language is C# / Razor / CSS (resx for resources). No new tooling
 
 - [x] 10. Checkpoint — run `dotnet build`, `dotnet test tests/Skoruba.Duende.IdentityServer.STS.Identity.UnitTests`, and `npm run build` (in the STS host project) if Tailwind output changed. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Extend `tests/Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.IntegrationTests` (additive only — do not modify existing tests)
-  - [ ]* 11.1 Add `LoginRedesignTests` integration class
+- [x] 11. Extend `tests/Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.IntegrationTests` (additive only — do not modify existing tests)
+  - [-]* 11.1 Add `LoginRedesignTests` integration class
     - Use the existing `WebApplicationFactory<Program>` pattern
     - Assert: the rendered `/Account/Login` contains the new chrome elements (`login-shell` wrapper, `_LoginHeader`, `_LoginFooter`), preserves all required `name` attributes, anti-forgery tokens, JS DOM ids, and external providers grid under both `vi` and `en` resolved cultures
     - _Requirements: 9.9, 12.3_
 
-  - [ ]* 11.2 Add `PhoneVerifyRedesignTests` integration class
+  - [-]* 11.2 Add `PhoneVerifyRedesignTests` integration class
     - Assert: `/Account/LoginWithPhone/Verify` renders `_LoginHeader`, `_LoginFooter`, conditional `_LoginTenantPill`, OTP input contracts, resend cooldown attributes, and back-link `returnUrl` round-trip under both cultures
     - _Requirements: 9.9, 12.3_
 
-  - [ ]* 11.3 Property test 17 — `SetLanguage` sets long-lived cookie and 302-redirects preserving `returnUrl`
+  - [-]* 11.3 Property test 17 — `SetLanguage` sets long-lived cookie and 302-redirects preserving `returnUrl`
     - File: `LanguageSwitcher_Property17_Tests.cs`
     - Drive via `TestServer` HTTP POST to `/Home/SetLanguage` with valid anti-forgery
     - Assert HTTP 302, `Location` header byte-equal to input `returnUrl`, `.AspNetCore.Culture` `Set-Cookie` `Expires` between `now + 364 days` and `now + 366 days`
     - **Property 17: SetLanguage sets a long-lived cookie and redirects preserving the returnUrl**
     - **Validates: Requirements 6.6, 9.1, 9.4**
 
-  - [ ]* 11.4 Property test 15 — Manifest covers required keys via real STS host services
+  - [x]* 11.4 Property test 15 — Manifest covers required keys via real STS host services
     - File: `LocalizationManifest_Property15_Tests.cs`
     - Resolve the real `IStringLocalizerFactory` from the host services; for every `(Entry, CultureInfo)` in `LocalizationManifest.Entries × resolvedSupportedUICultures`, assert `LocalizedString.IsResourceNotFound == false` and `Value != Key`
     - **Property 15: Localization manifest covers every required key in every supported culture**
