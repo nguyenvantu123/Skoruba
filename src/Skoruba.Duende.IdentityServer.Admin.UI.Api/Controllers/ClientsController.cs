@@ -1,7 +1,9 @@
 ﻿// Copyright (c) Jan Škoruba. All Rights Reserved.
 // Licensed under the Apache License, Version 2.0.
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +16,7 @@ using Skoruba.Duende.IdentityServer.Admin.UI.Api.ExceptionHandling;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Mappers;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Resources;
 using Skoruba.Duende.IdentityServer.Admin.UI.Api.Services;
+using Skoruba.Duende.IdentityServer.Admin.UI.Api.Services.TenantClientCache;
 
 namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
 {
@@ -27,15 +30,30 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
         private readonly IClientService _clientService;
         private readonly IClientScopeCacheService _clientScopeCacheService;
         private readonly IApiErrorResources _errorResources;
+        private readonly ITenantClientCacheService _tenantClientCache;
+        private readonly IClientTenantScopeResolver _scopeResolver;
 
+        /// <summary>
+        /// Constructs a <see cref="ClientsController"/>. The
+        /// <paramref name="tenantClientCache"/> and <paramref name="scopeResolver"/>
+        /// dependencies wire the per-tenant snapshot cache (feature
+        /// <c>tenant-client-cache-expansion</c>) alongside the legacy
+        /// <see cref="IClientScopeCacheService"/>; both caches are written
+        /// in a single CRUD request, with the legacy call kept first to
+        /// preserve backward compatibility (see design.md, "Coexistence").
+        /// </summary>
         public ClientsController(
             IClientService clientService,
             IClientScopeCacheService clientScopeCacheService,
-            IApiErrorResources errorResources)
+            IApiErrorResources errorResources,
+            ITenantClientCacheService tenantClientCache,
+            IClientTenantScopeResolver scopeResolver)
         {
             _clientService = clientService;
             _clientScopeCacheService = clientScopeCacheService;
             _errorResources = errorResources;
+            _tenantClientCache = tenantClientCache;
+            _scopeResolver = scopeResolver;
         }
 
         [HttpGet]
@@ -168,9 +186,20 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
                 return BadRequest(_errorResources.CannotSetId());
             }
 
+            var ct = HttpContext.RequestAborted;
+
+            // 1. Source-of-truth mutation (BusinessLogic + EF).
             var id = await _clientService.AddClientAsync(clientDto);
-            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, HttpContext.RequestAborted);
+            // 2. Legacy scope cache (R12 backward compat — call order verbatim).
+            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, ct);
             client.Id = id;
+
+            // 3-5. New tenant-scoped cache. Re-read for fresh TenantRedirectPairs
+            //      (design.md "Detail Add path") and write one snapshot per tenant.
+            //      Empty tenantKeys ⇒ skip write but still return 201 (R4.2).
+            var fresh = await _clientService.GetClientAsync(id);
+            var tenantKeys = await _scopeResolver.ResolveTenantKeysAsync(fresh, ct);
+            await _tenantClientCache.WriteSnapshotsAsync(tenantKeys, fresh, ct);
 
             return CreatedAtAction(nameof(Get), new { id }, client);
         }
@@ -182,10 +211,50 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
         public async Task<IActionResult> Put([FromBody] ClientApiDto client)
         {
             var clientDto = client.ToClientApiModel<ClientDto>();
+            var ct = HttpContext.RequestAborted;
 
-            await _clientService.GetClientAsync(clientDto.Id);
+            // R5.7 / drift detection: capture the pre-update view before
+            // mutating the row so we can compare tenant scope and clientId.
+            var preUpdate = await _clientService.GetClientAsync(clientDto.Id);
+            var preTenantKeys = await _scopeResolver.ResolveTenantKeysAsync(preUpdate, ct);
+            var preClientId = preUpdate.ClientId;
+
+            // 1. Source-of-truth mutation.
             await _clientService.UpdateClientAsync(clientDto, updateClientClaims: true, updateClientProperties: true);
-            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, HttpContext.RequestAborted);
+            // 2. Legacy scope cache (R12 backward compat — call order verbatim).
+            await _clientScopeCacheService.SaveAllowedScopesAsync(clientDto.ClientId, clientDto.AllowedScopes, ct);
+
+            // 3-4. Re-read for the post-update tenant scope (source of truth).
+            var fresh = await _clientService.GetClientAsync(clientDto.Id);
+            var tenantKeys = await _scopeResolver.ResolveTenantKeysAsync(fresh, ct);
+
+            var rename = !string.Equals(preClientId, fresh.ClientId, StringComparison.Ordinal);
+            if (rename)
+            {
+                // R5.7: clientId rename — the old (tenantKey, oldClientId) entries
+                // can never be reached by the new key. Invalidate both the
+                // pre- AND post-update tenant sets under the OLD clientId,
+                // then write fresh snapshots under the NEW clientId.
+                var invalidateTenantKeys = preTenantKeys
+                    .Union(tenantKeys, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                await _tenantClientCache.InvalidateSnapshotsAsync(invalidateTenantKeys, preClientId, ct);
+                await _tenantClientCache.WriteSnapshotsAsync(tenantKeys, fresh, ct);
+            }
+            else
+            {
+                // R5.2: drift = tenants present pre-update that are no longer
+                // in the post-update set. Invalidate just those, then write
+                // fresh snapshots for the remaining (post-update) tenants.
+                var drift = preTenantKeys
+                    .Except(tenantKeys, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (drift.Count > 0)
+                {
+                    await _tenantClientCache.InvalidateSnapshotsAsync(drift, fresh.ClientId, ct);
+                }
+                await _tenantClientCache.WriteSnapshotsAsync(tenantKeys, fresh, ct);
+            }
 
             return NoContent();
         }
@@ -195,10 +264,20 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
         [ProducesResponseType(404)]
         public async Task<IActionResult> Delete(int id)
         {
-            var clientDto = await _clientService.GetClientAsync(id);
+            var ct = HttpContext.RequestAborted;
 
+            // Capture pre-delete view BEFORE the mutation so we know which
+            // tenants the snapshot was written under (R6.1, R6.2).
+            var clientDto = await _clientService.GetClientAsync(id);
+            var preTenantKeys = await _scopeResolver.ResolveTenantKeysAsync(clientDto, ct);
+            var clientId = clientDto.ClientId;
+
+            // 1. Source-of-truth mutation.
             await _clientService.RemoveClientAsync(clientDto);
-            await _clientScopeCacheService.RemoveAllowedScopesAsync(clientDto.ClientId, HttpContext.RequestAborted);
+            // 2. Legacy scope cache (R12 backward compat — call order verbatim).
+            await _clientScopeCacheService.RemoveAllowedScopesAsync(clientId, ct);
+            // 3. Invalidate tenant-scoped snapshots.
+            await _tenantClientCache.InvalidateSnapshotsAsync(preTenantKeys, clientId, ct);
 
             return NoContent();
         }
@@ -209,12 +288,19 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Controllers
         public async Task<ActionResult<ClientApiDto>> PostClientClone([FromBody] ClientCloneApiDto client)
         {
             var clientCloneDto = client.ToClientApiModel<ClientCloneDto>();
+            var ct = HttpContext.RequestAborted;
 
             var originalClient = await _clientService.GetClientAsync(clientCloneDto.Id);
             var id = await _clientService.CloneClientAsync(clientCloneDto);
             originalClient.Id = id;
 
             var clonedClient = originalClient.ToClientApiModel<ClientApiDto>();
+
+            // R7.1: write snapshots ONLY for the cloned client. R7.2: do NOT
+            // touch source-client cache entries — the source row is unchanged.
+            var freshClone = await _clientService.GetClientAsync(id);
+            var tenantKeys = await _scopeResolver.ResolveTenantKeysAsync(freshClone, ct);
+            await _tenantClientCache.WriteSnapshotsAsync(tenantKeys, freshClone, ct);
 
             return CreatedAtAction(nameof(Get), new { id }, clonedClient);
         }

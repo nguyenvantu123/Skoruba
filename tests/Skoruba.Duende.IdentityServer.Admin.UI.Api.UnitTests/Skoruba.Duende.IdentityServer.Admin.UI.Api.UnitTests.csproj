@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <DebugType>Full</DebugType>
+        <IsPackable>false</IsPackable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+        <PackageReference Include="xunit" Version="2.9.3" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="FluentAssertions" Version="6.12.1" />
+        <PackageReference Include="Moq" Version="4.20.72" />
+        <PackageReference Include="FsCheck.Xunit" Version="3.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Skoruba.Duende.IdentityServer.Admin.UI.Api\Skoruba.Duende.IdentityServer.Admin.UI.Api.csproj" />
+        <ProjectReference Include="..\..\src\Skoruba.Duende.IdentityServer.Admin.BusinessLogic\Skoruba.Duende.IdentityServer.Admin.BusinessLogic.csproj" />
+        <!--
+            Task 12 (tenant-client-cache-public-read) reflects on
+            Skoruba.Duende.IdentityServer.TenantClientCache.Client.Models.PublicClientSnapshot
+            from SecurityRegressionTests to enforce the Public_Safe_Fields whitelist /
+            forbidden field-name regex. The reference is reflection-only — no SDK
+            type leaks into the production Admin.UI.Api surface.
+        -->
+        <ProjectReference Include="..\..\src\Skoruba.Duende.IdentityServer.TenantClientCache.Client\Skoruba.Duende.IdentityServer.TenantClientCache.Client.csproj" />
+    </ItemGroup>
+
+</Project>

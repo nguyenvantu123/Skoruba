@@ -10,7 +10,21 @@ using Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Dtos.Configuration;
 
 namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Helpers
 {
-    internal static class ClientTenantRedirectPairsHelper
+    /// <summary>
+    /// Helper for round-tripping the legacy <c>skoruba_tenant_redirect_pairs</c>
+    /// client-property JSON shape and merging it with the canonical
+    /// <see cref="ClientTenantRedirectPairDto"/> collection used elsewhere.
+    ///
+    /// Visibility note: this class is intentionally <c>public</c> so that the
+    /// <c>Admin.UI.Api</c> tenant client cache feature can reuse the property
+    /// key constant and the parse façade without re-implementing the JSON
+    /// format. The pre-existing methods (<see cref="PopulateFromStoredProperty"/>
+    /// etc.) keep the same semantics they had as <c>internal</c> — every
+    /// existing BusinessLogic caller is unchanged. Only <see cref="PropertyKey"/>
+    /// and the new <see cref="TryParsePairs"/> façade are intended for
+    /// cross-project reuse.
+    /// </summary>
+    public static class ClientTenantRedirectPairsHelper
     {
         public const string PropertyKey = "skoruba_tenant_redirect_pairs";
 
@@ -18,6 +32,57 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Helpers
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        /// <summary>
+        /// Parse a raw value coming from <c>ClientProperty.Value</c> (when the
+        /// property key is <see cref="PropertyKey"/>) into a normalized,
+        /// distinct-by-tenant view-only record list.
+        ///
+        /// The returned <see cref="ClientTenantRedirectPairView"/> is a
+        /// purpose-built record that exposes only the fields the
+        /// tenant-client-cache resolver needs (tenant key + sign-in /
+        /// sign-out redirect URIs). This keeps the BusinessLogic helper from
+        /// leaking implementation details (the internal stored-shape class,
+        /// alternative legacy property names, etc.) to UI.Api callers.
+        /// </summary>
+        /// <param name="json">Raw JSON value (typically empty when
+        /// the property is missing). Null or whitespace-only inputs are
+        /// treated as "no pairs".</param>
+        /// <param name="pairs">On success, a normalized, distinct-by-tenant
+        /// list of pair views. Empty list when input is null/whitespace or
+        /// the JSON is malformed (this method NEVER throws on parse error,
+        /// matching the legacy behaviour relied upon by STS).</param>
+        /// <returns>
+        /// <c>true</c> when the JSON parsed successfully (even if the result
+        /// is empty after normalization); <c>false</c> when the JSON was
+        /// malformed.
+        /// </returns>
+        public static bool TryParsePairs(string json, out IReadOnlyList<ClientTenantRedirectPairView> pairs)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                pairs = Array.Empty<ClientTenantRedirectPairView>();
+                return true;
+            }
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<StoredClientTenantRedirectPair>>(json, SerializerOptions);
+                var normalized = Normalize(parsed?.Select(x => x.ToDto()));
+                pairs = normalized
+                    .Select(p => new ClientTenantRedirectPairView(
+                        p.TenantKey,
+                        p.SignInCallbackUrl,
+                        p.SignOutCallbackUrl))
+                    .ToList();
+                return true;
+            }
+            catch (JsonException)
+            {
+                pairs = Array.Empty<ClientTenantRedirectPairView>();
+                return false;
+            }
+        }
 
         public static void PopulateFromStoredProperty(ClientDto client)
         {

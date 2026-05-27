@@ -54,10 +54,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Skoruba.Duende.IdentityServer.STS.Identity.UnitTests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration\Skoruba.Duende.IdentityServer.Admin.EntityFramework.Configuration.csproj" />
         <ProjectReference Include="..\Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared\Skoruba.Duende.IdentityServer.Admin.EntityFramework.Shared.csproj" />
         <ProjectReference Include="..\Skoruba.Duende.IdentityServer.Shared.Configuration\Skoruba.Duende.IdentityServer.Shared.Configuration.csproj" />
         <ProjectReference Include="..\Skoruba.Duende.IdentityServer.Shared\Skoruba.Duende.IdentityServer.Shared.csproj" />
+        <ProjectReference Include="..\Skoruba.Duende.IdentityServer.TenantClientCache.Client\Skoruba.Duende.IdentityServer.TenantClientCache.Client.csproj" />
         <ProjectReference Include="..\Skoruba.Duende.IdentityServer.TenantInfrastructure\TenantInfrastructure\TenantInfrastructure.csproj" />
     </ItemGroup>
 

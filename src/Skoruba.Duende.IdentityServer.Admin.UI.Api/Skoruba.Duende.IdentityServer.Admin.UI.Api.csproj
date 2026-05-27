@@ -11,6 +11,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Skoruba.Duende.IdentityServer.Admin.UI.Api.UnitTests" />
+        <InternalsVisibleTo Include="Skoruba.Duende.IdentityServer.Admin.UI.Api.IntegrationTests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="AspNetCore.HealthChecks.MySql" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.OpenIdConnectServer" Version="9.0.0" />

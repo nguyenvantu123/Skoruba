@@ -1,0 +1,100 @@
+@using Microsoft.AspNetCore.Mvc.Localization
+@using Skoruba.Duende.IdentityServer.STS.Identity.Models.Login
+@using Skoruba.Duende.IdentityServer.STS.Identity.ViewModels.Account
+@using TenantInfrastructure.Abstractions
+@inject IViewLocalizer Localizer
+@inject ITenantContextAccessor TenantContextAccessor
+@model SelectAccountViewModel
+@{
+    ViewData["Title"] = Localizer["LoginWithPhone.SelectAccount.Title"].Value;
+
+    var returnUrl = Model.ReturnUrl ?? string.Empty;
+
+    // Preserve returnUrl on the back-link verbatim (Requirement 5.13), matching
+    // the round-trip pattern used by Verify.cshtml.
+    var loginHref = string.IsNullOrEmpty(returnUrl)
+        ? "/Account/Login"
+        : "/Account/Login?returnUrl=" + Uri.EscapeDataString(returnUrl);
+
+    var headerModel = new LoginShellHeaderModel
+    {
+        CurrentPath = Context.Request.Path.HasValue ? Context.Request.Path.Value : "/",
+        CurrentQuery = Context.Request.QueryString.HasValue ? Context.Request.QueryString.Value : string.Empty
+    };
+}
+
+<div class="login-shell login-shell--gradient">
+    <div class="login-shell__lang-floating">
+        @await Html.PartialAsync("Common/_LoginLanguageSwitcher", headerModel)
+    </div>
+
+    <main class="login-shell__main">
+        <section class="login-shell__logo-block flex flex-col items-center text-center gap-2 mb-6">
+            <h1 class="login-shell__title text-2xl font-bold">
+                @Localizer["LoginWithPhone.SelectAccount.Title"]
+            </h1>
+            <p class="login-shell__subtitle text-sm text-muted-foreground">
+                @Localizer["LoginWithPhone.SelectAccount.Subtitle"]
+            </p>
+        </section>
+
+        @if (TenantContextAccessor.Current != null)
+        {
+            @await Html.PartialAsync("Common/_LoginTenantPill")
+        }
+
+        <div class="card login-card">
+            <div class="card-content py-6 space-y-5">
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @Model.Error
+                    </div>
+                }
+
+                <p class="text-sm text-muted-foreground">
+                    @Localizer["LoginWithPhone.SelectAccount.MaskedPhonePrefix"]
+                    <span class="font-medium text-foreground">@Model.MaskedPhone</span>
+                </p>
+
+                <form method="post" asp-action="SelectAccount" novalidate class="space-y-5">
+                    @Html.AntiForgeryToken()
+
+                    <div class="form-item">
+                        <label class="form-label" for="account-select">
+                            @Localizer["LoginWithPhone.SelectAccount.DropdownLabel"]
+                        </label>
+                        <select id="account-select"
+                                name="SelectionToken"
+                                class="input"
+                                aria-required="true"
+                                autofocus
+                                required>
+                            @for (var i = 0; i < Model.Candidates.Count; i++)
+                            {
+                                var c = Model.Candidates[i];
+                                <option value="@c.SelectionToken" selected="@(i == 0)">@c.UserName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+
+                    <button type="submit"
+                            class="btn-gradient-primary w-full inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium"
+                            aria-label="@Localizer["LoginWithPhone.SelectAccount.SubmitAriaLabel"]">
+                        @Localizer["LoginWithPhone.SelectAccount.Continue"]
+                    </button>
+                </form>
+
+                <p class="text-center text-sm">
+                    <a href="@loginHref" class="link-secondary text-muted-foreground hover:text-foreground hover:underline">
+                        @Localizer["LoginWithPhone.SelectAccount.BackToLogin"]
+                    </a>
+                </p>
+            </div>
+        </div>
+
+        @await Html.PartialAsync("Common/_LoginFooter")
+    </main>
+</div>

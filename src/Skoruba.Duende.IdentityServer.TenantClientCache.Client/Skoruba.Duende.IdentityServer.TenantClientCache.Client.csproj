@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--
+            Target framework rationale: the entire solution targets net10.0 (see other src/ projects).
+            The design document calls for net8.0 but the surrounding solution (Admin.UI.Api,
+            BusinessLogic, EntityFramework, etc.) is uniformly net10.0. Targeting net10.0 keeps
+            the SDK consistent with the rest of the solution and avoids cross-TFM friction with the
+            test project (Skoruba.Duende.IdentityServer.TenantClientCache.Client.UnitTests is net10.0).
+        -->
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+
+        <!--
+            Package metadata (R10.1).
+            Authors / PackageLicenseFile / PackageIcon / PackageReadmeFile /
+            PackageProjectUrl / Version are inherited from the solution-level
+            Directory.Build.props. Setting PackageLicenseExpression here would
+            collide with the inherited PackageLicenseFile (NU5033), so we let
+            the parent props own the licensing metadata.
+        -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Skoruba.Duende.IdentityServer.TenantClientCache.Client</PackageId>
+        <Description>SDK for the public-read endpoint of the tenant client cache.</Description>
+        <RepositoryUrl>https://github.com/skoruba/Duende.IdentityServer.Admin</RepositoryUrl>
+        <PackageTags>$(PackageTags);tenant-client-cache;public-read;sdk</PackageTags>
+
+        <!--
+            The solution-level Directory.Build.props injects shared NuGet pack assets
+            (LICENSE / README / nuget-icon) via relative paths that assume the project
+            sits two levels deep under src/. This SDK project follows that convention.
+        -->
+    </PropertyGroup>
+
+    <!--
+        R10.1 / R12.6: only packages already in the solution's transitive set.
+        Versions match the rest of the solution (10.0.2) — no new third-party
+        package and no new version is introduced.
+        System.Text.Json comes in via the framework reference on net10.0.
+    -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+    </ItemGroup>
+
+    <!--
+        Expose internal types (TenantClientCacheClientRetryPolicy,
+        TenantClientCacheClientMetrics, TenantClientCacheClientCacheEntry, ...)
+        to the unit test project so it can drive them directly.
+    -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="Skoruba.Duende.IdentityServer.TenantClientCache.Client.UnitTests" />
+    </ItemGroup>
+
+</Project>

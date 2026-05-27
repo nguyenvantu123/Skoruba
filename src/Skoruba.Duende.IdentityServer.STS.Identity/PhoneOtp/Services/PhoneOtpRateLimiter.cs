@@ -144,11 +144,51 @@ public sealed class PhoneOtpRateLimiter : IPhoneOtpRateLimiter
         }, ct);
     }
 
+    public async Task<RateLimitDecision> CheckIpSelectAsync(string ipHash, CancellationToken ct)
+    {
+        var key = BuildIpSelectKey(ipHash);
+        var stored = await _cache.GetStringAsync(key, ct);
+
+        if (stored is null || !int.TryParse(stored, out var counter))
+        {
+            return new RateLimitDecision(true, null, null);
+        }
+
+        if (counter >= _config.MultiAccount.IpSelectRateLimitMaxRequests)
+        {
+            return new RateLimitDecision(false, "IpSelectWindow", null);
+        }
+
+        return new RateLimitDecision(true, null, null);
+    }
+
+    public async Task RegisterIpSelectAttemptAsync(string ipHash, CancellationToken ct)
+    {
+        var key = BuildIpSelectKey(ipHash);
+        var stored = await _cache.GetStringAsync(key, ct);
+
+        int counter;
+        if (stored is null || !int.TryParse(stored, out counter))
+        {
+            counter = 0;
+        }
+
+        counter++;
+
+        await _cache.SetStringAsync(key, counter.ToString(), new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(_config.MultiAccount.IpSelectRateLimitWindowSeconds)
+        }, ct);
+    }
+
     private string BuildPhoneCooldownKey(string tenantKey, string phoneE164Hash)
         => $"{_prefix}rl:phone:{tenantKey}:{phoneE164Hash}";
 
     private string BuildIpKey(string ipHash)
         => $"{_prefix}rl:ip:{ipHash}";
+
+    private string BuildIpSelectKey(string ipHash)
+        => $"{_prefix}rl:ip-select:{ipHash}";
 
     private string BuildLockoutKey(string tenantKey, string phoneE164Hash)
         => $"{_prefix}lockout:phone:{tenantKey}:{phoneE164Hash}";

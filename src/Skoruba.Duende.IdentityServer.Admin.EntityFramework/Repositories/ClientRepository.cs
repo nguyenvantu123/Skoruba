@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Duende.IdentityServer.EntityFramework.Entities;
 using Duende.IdentityServer.Models;
@@ -27,6 +29,12 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Repositories
     where TDbContext : DbContext, IAdminConfigurationDbContext
     {
         private const string UseTenantRedirectPairsPropertyName = "UseTenantRedirectPairs";
+        private const string TenantRedirectPairsPropertyKey = "skoruba_tenant_redirect_pairs";
+
+        private static readonly JsonSerializerOptions TenantRedirectPairsSerializerOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
         protected readonly TDbContext DbContext;
         public bool AutoSaveChanges { get; set; } = true;
 
@@ -90,6 +98,132 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Repositories
                 .Where(x => x.ClientId == clientId)
                 .OrderBy(x => x.TenantKey)
                 .ToListAsync();
+        }
+
+        public virtual async Task<IReadOnlyList<int>> GetClientIdsByTenantAsync(string tenantKey, int max, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(tenantKey))
+            {
+                throw new ArgumentException("Tenant key must be provided.", nameof(tenantKey));
+            }
+
+            if (max <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(max), max, "Max must be a positive integer.");
+            }
+
+            var normalized = tenantKey.Trim();
+
+            // Priority 1: ClientTenantRedirectUris mapping (source of truth).
+            // Take(max + 1) so callers can detect overflow per R8.4.
+            var fromMapping = await DbContext.ClientTenantRedirectUris
+                .AsNoTracking()
+                .Where(x => x.TenantKey == normalized)
+                .Select(x => x.ClientId)
+                .Distinct()
+                .OrderBy(id => id)
+                .Take(max + 1)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (fromMapping.Count > 0)
+            {
+                return fromMapping;
+            }
+
+            // Priority 2 (fallback): scan Client.Properties[skoruba_tenant_redirect_pairs] JSON.
+            // Same priority chain as IClientTenantScopeResolver / STS ClientTenantRedirectResolver.
+            var fromProperties = await DbContext.Clients
+                .AsNoTracking()
+                .Where(c => c.Properties.Any(p => p.Key == TenantRedirectPairsPropertyKey))
+                .Select(c => new
+                {
+                    c.Id,
+                    Pairs = c.Properties
+                        .Where(p => p.Key == TenantRedirectPairsPropertyKey)
+                        .Select(p => p.Value)
+                        .FirstOrDefault()
+                })
+                .OrderBy(c => c.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var matched = new List<int>();
+
+            foreach (var entry in fromProperties)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                if (TryMatchTenantInPairs(entry.Pairs, normalized))
+                {
+                    matched.Add(entry.Id);
+
+                    if (matched.Count > max)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return matched;
+        }
+
+        private static bool TryMatchTenantInPairs(string rawValue, string normalizedTenantKey)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rawValue);
+
+                if (document.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    return false;
+                }
+
+                foreach (var element in document.RootElement.EnumerateArray())
+                {
+                    if (element.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    if (!element.TryGetProperty("tenantKey", out var tenantKeyElement) &&
+                        !element.TryGetProperty("TenantKey", out tenantKeyElement))
+                    {
+                        continue;
+                    }
+
+                    if (tenantKeyElement.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    var candidate = tenantKeyElement.GetString();
+                    if (string.IsNullOrWhiteSpace(candidate))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(candidate.Trim(), normalizedTenantKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // Malformed legacy JSON is treated the same way the resolver treats it: no match, no throw.
+                return false;
+            }
+
+            return false;
         }
 
         public virtual Task<bool> GetClientUseTenantRedirectPairsAsync(int clientId)

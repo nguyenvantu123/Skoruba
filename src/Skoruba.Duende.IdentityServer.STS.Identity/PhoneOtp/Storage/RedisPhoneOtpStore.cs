@@ -32,7 +32,11 @@ public sealed class RedisPhoneOtpStore : IPhoneOtpStore
         if (string.IsNullOrEmpty(json))
             return null;
 
-        return JsonSerializer.Deserialize<OtpStoreRecord>(json, JsonOptions);
+        var record = JsonSerializer.Deserialize<OtpStoreRecord>(json, JsonOptions);
+        if (record is null)
+            return null;
+
+        return EnsureCandidateUserIds(record);
     }
 
     public async Task SetAsync(string tenantKey, string phoneE164Hash, OtpStoreRecord record, TimeSpan ttl, CancellationToken ct)
@@ -58,6 +62,7 @@ public sealed class RedisPhoneOtpStore : IPhoneOtpStore
         if (record is null)
             return 0;
 
+        record = EnsureCandidateUserIds(record);
         var updatedRecord = record with { AttemptCount = record.AttemptCount + 1 };
 
         var remainingTtl = record.ExpiresAtUtc - DateTimeOffset.UtcNow;
@@ -82,6 +87,22 @@ public sealed class RedisPhoneOtpStore : IPhoneOtpStore
     private string BuildKey(string tenantKey, string phoneE164Hash)
     {
         return $"{_prefix}rec:{tenantKey}:{phoneE164Hash}";
+    }
+
+    /// <summary>
+    /// Backward-compat fallback (Requirement 2.6, 14.4, 16.8): record JSON cũ
+    /// thiếu field <c>candidateUserIds</c> SHALL deserialize với
+    /// <c>CandidateUserIds = [record.UserId]</c> để in-flight OTP đã issue
+    /// trước deploy vẫn verify được sau deploy.
+    /// </summary>
+    private static OtpStoreRecord EnsureCandidateUserIds(OtpStoreRecord record)
+    {
+        if (record.CandidateUserIds is null || record.CandidateUserIds.Count == 0)
+        {
+            return record with { CandidateUserIds = new[] { record.UserId } };
+        }
+
+        return record;
     }
 
     private static string Sha256Hex(string input)

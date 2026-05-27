@@ -123,4 +123,7 @@
   <data name="Generic_Verify_Error" xml:space="preserve">
     <value>Mã OTP không đúng hoặc đã hết hạn.</value>
   </data>
+  <data name="LoginWithPhone.SelectAccount.GenericError" xml:space="preserve">
+    <value>Không thể đăng nhập với tài khoản đã chọn. Vui lòng thử lại.</value>
+  </data>
 </root>

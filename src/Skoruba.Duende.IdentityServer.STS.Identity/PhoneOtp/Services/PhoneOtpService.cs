@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -103,14 +104,44 @@ public sealed class PhoneOtpService : IPhoneOtpService
                         && u.TenantKey == request.TenantKey)
             .ToListAsync(ct);
 
-        if (users.Count != 1)
+        if (users.Count == 0)
         {
+            _logger.LogInformation("PhoneOtpRequest: user lookup failed (count=0). {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
+                "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected");
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+        }
+
+        var multiEnabled = _config.MultiAccount.Enabled;
+        if (users.Count > 1 && !multiEnabled)
+        {
+            // Legacy fail-closed (R1.3): nhiều user mà flag MultiAccount off → reject.
             _logger.LogInformation("PhoneOtpRequest: user lookup failed (count={UserCount}). {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
                 users.Count, "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected");
             return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
         }
 
-        var user = users[0];
+        // users.Count == 1 (any flag) hoặc users.Count >= 1 (multi flag-on) → tiếp tục.
+        // Sort deterministic theo R2.3 chỉ khi đa user; single user tránh khoản allocate dư.
+        IReadOnlyList<UserIdentity> sortedUsers;
+        if (multiEnabled && users.Count > 1)
+        {
+            // R2.3: (LockoutEnabled ASC, LockoutEnd NULL FIRST then ASC, NormalizedUserName ASC).
+            sortedUsers = users
+                .OrderBy(u => u.LockoutEnabled)
+                .ThenBy(u => u.LockoutEnd.HasValue ? 1 : 0) // NULL first
+                .ThenBy(u => u.LockoutEnd ?? DateTimeOffset.MaxValue)
+                .ThenBy(u => u.NormalizedUserName, StringComparer.Ordinal)
+                .ToList();
+        }
+        else
+        {
+            sortedUsers = users; // single user: ordering không quan trọng.
+        }
+
+        var candidateIds = sortedUsers.Select(u => u.Id).ToImmutableArray();
+        var primaryUser = sortedUsers[0];
+        var primaryUserId = primaryUser.Id;
+        var user = primaryUser;
 
         // 6. Generate OTP
         var otp = GenerateOtp(_config.OtpLength);
@@ -125,7 +156,8 @@ public sealed class PhoneOtpService : IPhoneOtpService
             OtpHash = hash,
             TenantKey = request.TenantKey,
             PhoneE164 = e164,
-            UserId = user.Id,
+            UserId = primaryUserId,
+            CandidateUserIds = candidateIds, // R2.4: lock-in Candidate_Set ngay khi issue.
             CreatedAtUtc = now,
             ExpiresAtUtc = now.AddSeconds(_config.OtpTtlSeconds),
             AttemptCount = 0
@@ -150,10 +182,10 @@ public sealed class PhoneOtpService : IPhoneOtpService
             return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
         }
 
-        _logger.LogInformation("PhoneOtpRequest: OTP issued successfully. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
-            "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Issued");
+        _logger.LogInformation("PhoneOtpRequest: OTP issued successfully. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {CandidateCount}",
+            "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Issued", candidateIds.Length);
 
-        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null);
+        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null, candidateIds);
     }
 
     public async Task<VerifyOtpResult> VerifyAsync(VerifyOtpRequest request, CancellationToken ct)
@@ -201,11 +233,21 @@ public sealed class PhoneOtpService : IPhoneOtpService
             return new VerifyOtpResult(VerifyOutcome.Mismatch, null, attemptCount);
         }
 
-        // 6. Match! Delete record and return success
+        // 6. Match! Capture branching context (Candidate_Set + raw phone) BEFORE the
+        //    record is deleted (Requirement 4.1). Single-use semantics is preserved by
+        //    DeleteAsync below; the captured values live only on the result tuple and
+        //    never round-trip through Otp_Store again. PhoneE164 ở đây là server-only
+        //    payload — controller chỉ dùng để mask vào TempData (Section 4.5 design),
+        //    KHÔNG được đẩy ra HTTP response/view/cookie/log (Requirement 10.5).
+        var candidateIds = record.CandidateUserIds is { Count: > 0 } ids
+            ? ids
+            : new[] { record.UserId };
+        var phoneE164 = record.PhoneE164;
+
         _logger.LogInformation("PhoneOtpVerify: OTP verified successfully. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {AttemptCount}",
             "PhoneOtpVerify", request.TenantKey, GetPhoneLast4(record.PhoneE164), request.PhoneE164Hash[..Math.Min(8, request.PhoneE164Hash.Length)], request.RemoteIp, "Succeeded", attemptCount);
         await _store.DeleteAsync(request.TenantKey, request.PhoneE164Hash, ct);
-        return new VerifyOtpResult(VerifyOutcome.Succeeded, record.UserId, attemptCount);
+        return new VerifyOtpResult(VerifyOutcome.Succeeded, record.UserId, attemptCount, candidateIds, phoneE164);
     }
 
     public async Task<IssueOtpResult> ResendAsync(IssueOtpRequest request, CancellationToken ct)

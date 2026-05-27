@@ -123,4 +123,7 @@
   <data name="Generic_Verify_Error" xml:space="preserve">
     <value>OTP is incorrect or has expired.</value>
   </data>
+  <data name="LoginWithPhone.SelectAccount.GenericError" xml:space="preserve">
+    <value>Cannot sign in with the selected account. Please try again.</value>
+  </data>
 </root>

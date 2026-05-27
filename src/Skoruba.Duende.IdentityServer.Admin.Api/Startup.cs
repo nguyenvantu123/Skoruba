@@ -87,6 +87,27 @@ namespace Skoruba.Duende.IdentityServer.Admin.Api
                 opt.Resolution.ReservedSubdomains.Add("sso");
                 opt.Resolution.AllowMissingTenant = true;
             });
+
+            // Tenant client cache feature (tenant-client-cache-expansion).
+            // MUST be called AFTER AddTenantInfrastructure so the
+            // IDistributedCache the cache service depends on is already
+            // registered by the tenant infrastructure wiring.
+            services.RegisterTenantClientCache(Configuration);
+
+            // Tenant client cache public-read endpoint
+            // (tenant-client-cache-public-read, Task 11).
+            //
+            // MUST run AFTER RegisterTenantClientCache so that
+            // ITenantClientCacheService — which the public-read
+            // controller resolves through DI — is already in the
+            // service collection. The extension is idempotent
+            // (TryAdd-based) and additionally arms ValidateOnStart()
+            // for the bound TenantClientCachePublicReadOptions; the
+            // host therefore fails fast on misconfiguration (R1.4,
+            // R1.5, R4.3, R4.4, R5.6, R6.2, R9.6) instead of going
+            // live with a degraded public-read pipeline.
+            services.AddTenantClientCachePublicRead(Configuration);
+
             services.AddHttpContextAccessor();
             services.AddSingleton(new ConfigurationStoreOptions());
             services.AddSingleton(new OperationalStoreOptions());

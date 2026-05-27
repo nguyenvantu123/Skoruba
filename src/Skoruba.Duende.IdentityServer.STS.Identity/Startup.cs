@@ -121,6 +121,7 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity
             services.AddDataProtection<IdentityServerDataProtectionDbContext>(Configuration);
             services.AddEmailSenders(Configuration);
             services.AddPhoneOtpLogin(Configuration);
+            services.AddPublicTenantClientSnapshotConsumer(Configuration);
             RegisterAuthentication(services);
             services.AddScoped<ITenantAdminAccountService, TenantAdminAccountService>();
             services.AddScoped<ITenantRegistryLookupService, TenantRegistryLookupService>();

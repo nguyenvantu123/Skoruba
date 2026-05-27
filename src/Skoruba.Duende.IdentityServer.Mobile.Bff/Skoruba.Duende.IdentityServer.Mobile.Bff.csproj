@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <UserSecretsId>3a35aef9-9b1c-4b8a-9d2c-7d65c3d3b001</UserSecretsId>
+        <NoWarn>$(NoWarn);NU1903</NoWarn>
+    </PropertyGroup>
+
+    <!--
+        BFF host: stateless minimal-API. Versions match the rest of the
+        solution (verified via STS.Identity.csproj). No DbContext / no
+        Admin.UI.Api / no BusinessLogic project references — see AGENTS.md
+        "minimize blast radius" and the public-read isolation rule (R2.7).
+    -->
+    <ItemGroup>
+        <PackageReference Include="IdentityModel" Version="7.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+        <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Skoruba.Duende.IdentityServer.TenantClientCache.Client\Skoruba.Duende.IdentityServer.TenantClientCache.Client.csproj" />
+        <ProjectReference Include="..\Skoruba.Duende.IdentityServer.TenantInfrastructure\TenantInfrastructure\TenantInfrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Skoruba.Duende.IdentityServer.Mobile.Bff.IntegrationTests" />
+    </ItemGroup>
+
+</Project>

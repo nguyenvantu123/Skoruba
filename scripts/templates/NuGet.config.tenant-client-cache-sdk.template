@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Template NuGet.config for downstream solutions consuming the
+  Skoruba.Duende.IdentityServer.TenantClientCache.Client SDK from a local
+  feed produced by `scripts/pack-tenant-client-cache-sdk.sh --push`.
+
+  USAGE
+    1. Run `./scripts/pack-tenant-client-cache-sdk.sh --push` in this repo.
+    2. Copy this file to the ROOT of the consuming solution as `NuGet.config`.
+    3. Edit the `<add key="skoruba-local" value="..." />` line to point at
+       the local feed path printed by the pack script (default
+       `~/.nuget-local`). Use an absolute path on macOS / Linux or a UNC
+       path on Windows (`\\` not `/`).
+    4. Restore the consuming solution (`dotnet restore`) and add a
+       `<PackageReference Include="Skoruba.Duende.IdentityServer.TenantClientCache.Client"
+                          Version="3.0.0-preview.22" />` to the consumer csproj.
+
+  RATIONALE
+    `<clear />` ensures a known-good provider list and prevents inheritance
+    from a parent NuGet.config that might silently shadow nuget.org with a
+    private feed. The two declared sources are:
+
+      - nuget.org   : public packages the SDK depends on transitively
+                      (Microsoft.Extensions.Http, etc.).
+      - skoruba-local: local folder feed where the SDK .nupkg was pushed.
+
+  Production note
+    For a multi-developer team, replace the local feed with a hosted feed
+    (GitHub Packages, Azure Artifacts, NuGet.org). See
+    `docs/tenant-client-cache-public-read.md` Section 9.7.
+-->
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <!-- EDIT this path to match the local feed printed by the pack script. -->
+    <add key="skoruba-local" value="REPLACE_WITH_PATH_TO_LOCAL_FEED" />
+  </packageSources>
+</configuration>

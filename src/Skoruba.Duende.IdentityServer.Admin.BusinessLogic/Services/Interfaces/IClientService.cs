@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Dtos.Configuration;
 using Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Shared.Dtos.Common;
@@ -27,6 +28,8 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Services.Interfaces
         Task<bool> CanInsertClientAsync(ClientDto client, bool isCloned = false);
 
         Task<ClientDto> GetClientAsync(int clientId);
+
+        Task<IReadOnlyList<int>> ListClientPrimaryKeysForTenantAsync(string tenantKey, int max, CancellationToken cancellationToken);
 
         Task<ClientsDto> GetClientsAsync(string search, int page = 1, int pageSize = 10);
 

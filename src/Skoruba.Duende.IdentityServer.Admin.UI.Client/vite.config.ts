@@ -24,8 +24,6 @@ export default defineConfig(({ command }) => {
     host: env.DEV_SERVER_HOST || "admin.dev.localhost",
     allowedHosts: [
       "admin.dev.localhost",
-      "tenant1.dev.localhost",
-      "tenant2.dev.localhost",
     ],
     proxy: {
       "^/user$": {

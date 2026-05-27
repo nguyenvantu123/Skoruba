@@ -13,4 +13,11 @@ public sealed class PhoneOtpLoginConfiguration
     public int PhoneVerifyLockoutMaxFailures { get; set; } = 10;
     public string DefaultRegion { get; set; } = "VN";
     public string RedisKeyPrefix { get; set; } = "otp:";
+
+    /// <summary>
+    /// Sub-section <c>PhoneOtpLogin:MultiAccount</c>. Defaults inline tại
+    /// <see cref="MultiAccountConfiguration"/>. Khi key absent trong appsettings,
+    /// options binding tạo instance với defaults (Requirement 1.5).
+    /// </summary>
+    public MultiAccountConfiguration MultiAccount { get; set; } = new();
 }

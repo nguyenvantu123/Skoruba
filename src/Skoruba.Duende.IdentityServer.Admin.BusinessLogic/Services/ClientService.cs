@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Duende.IdentityServer.Models;
 using Skoruba.AuditLogging.Services;
@@ -405,6 +406,21 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Services
             await AuditEventLogger.LogEventAsync(new ClientRequestedEvent(clientDto));
 
             return clientDto;
+        }
+
+        public virtual Task<IReadOnlyList<int>> ListClientPrimaryKeysForTenantAsync(string tenantKey, int max, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(tenantKey))
+            {
+                throw new ArgumentException("Tenant key must be provided.", nameof(tenantKey));
+            }
+
+            if (max <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(max), max, "Max must be a positive integer.");
+            }
+
+            return ClientRepository.GetClientIdsByTenantAsync(tenantKey, max, cancellationToken);
         }
 
         public virtual async Task<ClientsDto> GetClientsAsync(string search, int page = 1, int pageSize = 10)

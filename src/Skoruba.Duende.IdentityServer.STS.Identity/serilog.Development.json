@@ -5,7 +5,9 @@
         "Microsoft.EntityFrameworkCore.Database.Command": "Information",
         "Skoruba.Duende.IdentityServer.STS.Identity.Services.StsIdentityDbConnectionStringResolver": "Information",
         "Serilog.AspNetCore.RequestLoggingMiddleware": "Information",
-        "Microsoft.AspNetCore.Authentication": "Warning"
+        "Microsoft.AspNetCore.Authentication": "Warning",
+        "Duende.IdentityServer": "Debug",
+        "Duende.IdentityServer.Validation": "Debug"
       }
     }
   }

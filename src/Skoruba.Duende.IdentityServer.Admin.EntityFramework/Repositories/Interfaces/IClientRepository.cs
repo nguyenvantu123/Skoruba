@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Duende.IdentityServer.EntityFramework.Entities;
 using Skoruba.Duende.IdentityServer.Admin.EntityFramework.Admin.Storage.Entities.Configuration;
@@ -32,6 +33,8 @@ namespace Skoruba.Duende.IdentityServer.Admin.EntityFramework.Repositories.Inter
         Task<Client> GetClientAsync(int clientId);
 
         Task<List<ClientTenantRedirectUri>> GetClientTenantRedirectUrisAsync(int clientId);
+
+        Task<IReadOnlyList<int>> GetClientIdsByTenantAsync(string tenantKey, int max, CancellationToken cancellationToken);
 
         Task<bool> GetClientUseTenantRedirectPairsAsync(int clientId);
 
