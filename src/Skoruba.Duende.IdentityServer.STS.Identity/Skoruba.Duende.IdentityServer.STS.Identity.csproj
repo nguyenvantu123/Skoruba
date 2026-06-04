@@ -33,6 +33,7 @@
 
 		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.2" />
 		<PackageReference Include="Microsoft.Identity.Web" Version="4.3.0" />
+		<PackageReference Include="MongoDB.Driver" Version="3.0.0" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.2" />
         <PackageReference Include="Duende.IdentityServer.AspNetIdentity" Version="7.4.5" />

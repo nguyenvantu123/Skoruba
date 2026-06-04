@@ -13,6 +13,37 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.login-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    border-bottom: 0;
+}
+
+.login-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    background-color: hsl(var(--background));
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+    text-align: center;
+    box-shadow: inset 0 1px 0 hsl(var(--background) / 0.8);
+}
+
+.login-tab[aria-selected="true"],
+.login-tab.is-active {
+    border-color: hsl(var(--primary));
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--background)));
+    color: hsl(var(--foreground));
+    box-shadow: 0 10px 18px -18px hsl(var(--primary) / 0.8);
+}
+
 [role="tab"] {
     appearance: none;
     background: transparent;
@@ -625,4 +656,216 @@
     cursor: not-allowed;
     filter: none;
     box-shadow: none;
+}
+
+/* Verify view ----------------------------------------------------------------
+ * Dedicated OTP verify layout using the same shell/card primitives as login.
+ * Scoped under `.verify-shell__*` so other auth views remain unchanged.
+ * -------------------------------------------------------------------------- */
+
+.verify-shell__hero {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: center;
+}
+
+.verify-shell__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1rem;
+    border: 1px solid hsl(var(--border));
+    background:
+        radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.28), transparent 70%),
+        hsl(var(--background));
+    color: hsl(var(--primary));
+    box-shadow:
+        0 1px 2px 0 hsl(var(--foreground) / 0.05),
+        0 12px 24px -18px hsl(var(--primary) / 0.7);
+}
+
+.verify-shell__phone-chip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 9999px;
+    background-color: hsl(var(--background) / 0.78);
+    box-shadow: inset 0 1px 0 hsl(var(--background) / 0.8);
+}
+
+.verify-shell__phone-chip-label {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+}
+
+.verify-shell__phone-chip-value {
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    color: hsl(var(--foreground));
+}
+
+.verify-shell__card {
+    max-width: 30rem;
+}
+
+.verify-shell__card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 0.25rem;
+}
+
+.verify-shell__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.verify-shell__otp-field {
+    margin-bottom: 0;
+}
+
+.verify-shell__otp-field .form-label {
+    margin-bottom: 0.625rem;
+    font-size: 0.8125rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.verify-shell__otp-field .input-with-icon > input {
+    height: 3rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-align: center;
+    padding-left: 2.75rem !important;
+    padding-right: 1rem !important;
+}
+
+.verify-shell__otp-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: hsl(var(--muted-foreground));
+}
+
+.verify-shell__otp-hint strong {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+}
+
+.verify-shell__primary-action {
+    min-height: 3rem;
+}
+
+.verify-shell__secondary-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.25rem;
+}
+
+.verify-shell__resend-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    padding: 0.125rem 0.25rem;
+    border: 0;
+    background: transparent;
+    color: hsl(var(--primary));
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.verify-shell__resend-link:hover,
+.verify-shell__resend-link:focus-visible {
+    color: hsl(var(--foreground));
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+.verify-shell__back-link-wrap {
+    margin: 0;
+    text-align: center;
+}
+
+.verify-shell__back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: hsl(var(--muted-foreground));
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.verify-shell__back-link:hover,
+.verify-shell__back-link:focus-visible {
+    color: hsl(var(--foreground));
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+.verify-shell__dev-otp {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.9rem 1rem;
+    border: 1px dashed hsl(var(--primary) / 0.45);
+    border-radius: 0.875rem;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.12), hsl(var(--background)));
+    text-align: center;
+}
+
+.verify-shell__dev-otp-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: hsl(var(--primary));
+}
+
+.verify-shell__dev-otp-code {
+    font-size: 1.5rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: hsl(var(--foreground));
+}
+
+.verify-shell__dev-otp-help {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 767px) {
+    .verify-shell__card {
+        padding: 1.25rem;
+    }
+
+    .verify-shell__otp-field .input-with-icon > input {
+        font-size: 1rem;
+        letter-spacing: 0.12em;
+    }
+
+    .verify-shell__phone-chip {
+        width: 100%;
+        border-radius: 1rem;
+    }
 }

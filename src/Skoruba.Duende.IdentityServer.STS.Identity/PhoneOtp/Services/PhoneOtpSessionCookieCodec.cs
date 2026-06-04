@@ -10,7 +10,11 @@ public sealed record SessionCookiePayload(
     string TenantKey,
     string PhoneE164Hash,
     DateTimeOffset ExpiresAtUtc,
-    int Version = 1);
+    string? PhoneNumber = null,
+    string? ClientId = null,
+    string? MaskedPhone = null,
+    DateTimeOffset? ResendAvailableAtUtc = null,
+    int Version = 3);
 
 public sealed class PhoneOtpSessionCookieCodec
 {

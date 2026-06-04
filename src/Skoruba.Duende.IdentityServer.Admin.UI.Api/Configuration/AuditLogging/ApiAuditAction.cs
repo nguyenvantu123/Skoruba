@@ -11,11 +11,14 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Configuration.AuditLogging
     {
         public ApiAuditAction(IHttpContextAccessor accessor)
         {
+            var httpContext = accessor.HttpContext;
+
             Action = new
             {
-                TraceIdentifier = accessor.HttpContext.TraceIdentifier,
-                RequestUrl = accessor.HttpContext.Request.GetDisplayUrl(),
-                HttpMethod = accessor.HttpContext.Request.Method
+                TraceIdentifier = httpContext?.TraceIdentifier,
+                RequestUrl = httpContext?.Request?.GetDisplayUrl(),
+                HttpMethod = httpContext?.Request?.Method,
+                IsHttpRequest = httpContext != null
             };
         }
 

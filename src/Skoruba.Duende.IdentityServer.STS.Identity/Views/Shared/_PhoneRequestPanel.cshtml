@@ -1,10 +1,17 @@
 @using Microsoft.AspNetCore.Mvc.Localization
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Options
+@using Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.Configuration
 @inject IViewLocalizer Localizer
+@inject IWebHostEnvironment HostEnvironment
+@inject IOptions<PhoneOtpLoginConfiguration> PhoneOtpOptions
 @{
     var returnUrl = ViewData["PhoneOtpReturnUrl"] as string ?? string.Empty;
-    var phoneOtpError = (ViewData["PhoneOtpError"] as string)
-                        ?? (TempData.Peek("PhoneOtpError") as string);
+    var phoneOtpError = ViewData["PhoneOtpError"] as string;
+    var phoneOtpRejectionReason = ViewData["PhoneOtpRejectionReason"] as string;
+    var smsDeliveryDisabled = !PhoneOtpOptions.Value.UserApi.Enabled && !PhoneOtpOptions.Value.SmsDeliveryEnabled;
     var hasError = !string.IsNullOrEmpty(phoneOtpError);
+    var showDiagnostics = HostEnvironment.IsDevelopment() && !string.IsNullOrWhiteSpace(phoneOtpRejectionReason);
 
     // Curated list of dial codes covering the bulk of expected traffic. Each option
     // carries an ISO-3166 region code in `data-region` so the future server-side
@@ -35,13 +42,28 @@
     };
 }
 
-<form id="phone-request-form" method="post" action="/Account/LoginWithPhone/Request" novalidate>
+<form id="phone-request-form" method="post" action="/connect/phone-otp/request" novalidate>
     @Html.AntiForgeryToken()
+
+    @if (smsDeliveryDisabled)
+    {
+        <div class="verify-shell__dev-otp mb-4" role="status">
+            <div class="verify-shell__dev-otp-label">SMS delivery disabled</div>
+            <div class="verify-shell__dev-otp-help">A generated OTP will be shown on the verify screen after you request a code.</div>
+        </div>
+    }
 
     @if (hasError)
     {
         <div class="alert alert-danger" role="alert">
             @phoneOtpError
+
+            @if (showDiagnostics)
+            {
+                <div class="mt-2 text-xs opacity-80" data-phone-otp-diagnostics="true">
+                    Internal reason: <code>@phoneOtpRejectionReason</code>
+                </div>
+            }
         </div>
     }
 
@@ -75,6 +97,7 @@
                        inputmode="tel"
                        autocomplete="tel-national"
                        id="phoneOtpLocalNumber"
+                       name="LocalPhoneNumber"
                        placeholder="@Localizer["LoginWithPhone.PhonePlaceholder"]"
                        required />
             </div>

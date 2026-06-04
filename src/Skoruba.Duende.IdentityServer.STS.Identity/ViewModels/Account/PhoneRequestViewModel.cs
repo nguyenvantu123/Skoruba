@@ -8,6 +8,10 @@ namespace Skoruba.Duende.IdentityServer.STS.Identity.ViewModels.Account
     {
         public string PhoneNumber { get; set; } = string.Empty;
 
+        public string? DialCode { get; set; }
+
+        public string? LocalPhoneNumber { get; set; }
+
         public string? ReturnUrl { get; set; }
 
         /// <summary>

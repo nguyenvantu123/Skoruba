@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.Configuration;
+using TenantInfrastructure.Abstractions;
 
 namespace Skoruba.Duende.IdentityServer.STS.Identity.PhoneOtp.Filters;
 
@@ -23,10 +24,13 @@ public sealed class PhoneOtpMultiAccountFeatureGateAttribute : Attribute, IAsync
     {
         var options = context.HttpContext.RequestServices
             .GetRequiredService<IOptions<PhoneOtpLoginConfiguration>>();
+        var tenantContextAccessor = context.HttpContext.RequestServices
+            .GetRequiredService<ITenantContextAccessor>();
 
         var config = options.Value;
+        var tenantKey = tenantContextAccessor.Current?.TenantKey;
 
-        if (!config.Enabled || !config.MultiAccount.Enabled)
+        if (!config.Enabled || !config.IsMultiAccountEnabled(tenantKey))
         {
             context.Result = new NotFoundResult();
             return;

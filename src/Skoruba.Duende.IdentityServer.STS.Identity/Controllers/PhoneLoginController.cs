@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,7 @@ public sealed class PhoneLoginController : Controller
     private const string SelectAccountRedirectPath = "/Account/LoginWithPhone/SelectAccount";
     private const string VerifyViewPath = "~/Views/Account/LoginWithPhone/Verify.cshtml";
 
-    private readonly IPhoneOtpService _phoneOtpService;
+    private readonly IExternalPhoneOtpClient _externalPhoneOtpClient;
     private readonly PhoneOtpSessionCookieCodec _cookieCodec;
     private readonly IPhoneNumberNormalizer _normalizer;
     private readonly ITenantContextAccessor _tenantContextAccessor;
@@ -62,7 +63,6 @@ public sealed class PhoneLoginController : Controller
     private readonly IIdentityServerInteractionService _interaction;
     private readonly IEventService _events;
     private readonly IPhoneOtpAntiBotChallenge _antiBot;
-    private readonly IPhoneOtpStore _store;
     private readonly PhoneOtpLoginConfiguration _config;
     private readonly ILogger<PhoneLoginController> _logger;
     private readonly IStringLocalizer<PhoneLoginController> _localizer;
@@ -72,7 +72,7 @@ public sealed class PhoneLoginController : Controller
     private readonly IPhoneOtpRateLimiter? _rateLimiter;
 
     public PhoneLoginController(
-        IPhoneOtpService phoneOtpService,
+        IExternalPhoneOtpClient externalPhoneOtpClient,
         PhoneOtpSessionCookieCodec cookieCodec,
         IPhoneNumberNormalizer normalizer,
         ITenantContextAccessor tenantContextAccessor,
@@ -81,7 +81,6 @@ public sealed class PhoneLoginController : Controller
         IIdentityServerInteractionService interaction,
         IEventService events,
         IPhoneOtpAntiBotChallenge antiBot,
-        IPhoneOtpStore store,
         IOptions<PhoneOtpLoginConfiguration> options,
         ILogger<PhoneLoginController> logger,
         IStringLocalizer<PhoneLoginController> localizer,
@@ -90,7 +89,7 @@ public sealed class PhoneLoginController : Controller
         ISelectionTokenProtector? tokenProtector = null,
         IPhoneOtpRateLimiter? rateLimiter = null)
     {
-        _phoneOtpService = phoneOtpService;
+        _externalPhoneOtpClient = externalPhoneOtpClient;
         _cookieCodec = cookieCodec;
         _normalizer = normalizer;
         _tenantContextAccessor = tenantContextAccessor;
@@ -99,7 +98,6 @@ public sealed class PhoneLoginController : Controller
         _interaction = interaction;
         _events = events;
         _antiBot = antiBot;
-        _store = store;
         _config = options.Value;
         _logger = logger;
         _localizer = localizer;
@@ -115,6 +113,7 @@ public sealed class PhoneLoginController : Controller
     /// rejection không phân biệt được về mặt timing (R7.1, R11.2, R11.3).
     /// </summary>
     [HttpPost("Request")]
+    [HttpPost("~/connect/phone-otp/request")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RequestOtp([FromForm] PhoneRequestViewModel model, CancellationToken ct)
     {
@@ -164,16 +163,19 @@ public sealed class PhoneLoginController : Controller
             return await RejectRequestAsync(model, rejectionDelayMs, "MissingTenantContext", ct).ConfigureAwait(false);
         }
 
-        var issueRequest = new IssueOtpRequest(
-            RawPhone: model.PhoneNumber ?? string.Empty,
-            TenantKey: tenant.TenantKey,
-            RemoteIp: GetRemoteIp(),
-            ReturnUrl: model.ReturnUrl ?? string.Empty);
-
-        IssueOtpResult issueResult;
+        var submittedPhoneNumber = ResolveSubmittedPhoneNumber(model);
+        var clientId = await ResolveClientIdAsync(model.ReturnUrl).ConfigureAwait(false);
+        ExternalPhoneOtpIssueResult issueResult;
         try
         {
-            issueResult = await _phoneOtpService.IssueAsync(issueRequest, ct).ConfigureAwait(false);
+            issueResult = await _externalPhoneOtpClient.RequestAsync(
+                new ExternalPhoneOtpIssueRequest(
+                    PhoneNumber: submittedPhoneNumber,
+                    TenantKey: tenant.TenantKey,
+                    ClientId: clientId,
+                    RemoteIp: GetRemoteIp(),
+                    ReturnUrl: model.ReturnUrl ?? string.Empty),
+                ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -183,7 +185,7 @@ public sealed class PhoneLoginController : Controller
         {
             _logger.LogError(
                 ex,
-                "PhoneOtpRequest: unexpected error during IssueAsync. {Event} {TenantKey} {RemoteIp} {Outcome}",
+                "PhoneOtpRequest: unexpected error during external request. {Event} {TenantKey} {RemoteIp} {Outcome}",
                 "PhoneOtpRequest",
                 tenant.TenantKey,
                 GetRemoteIp(),
@@ -191,25 +193,43 @@ public sealed class PhoneLoginController : Controller
             return await RejectRequestAsync(model, rejectionDelayMs, "ServiceError", ct).ConfigureAwait(false);
         }
 
-        if (issueResult.Outcome != IssueOutcome.Issued
-            || string.IsNullOrEmpty(issueResult.PhoneE164Hash)
-            || issueResult.ExpiresAtUtc is null)
+        if (!issueResult.Succeeded)
         {
-            return await RejectRequestAsync(model, rejectionDelayMs, "ServiceRejected", ct).ConfigureAwait(false);
+            var rejectionReason = string.IsNullOrWhiteSpace(issueResult.RejectionReason)
+                ? "ServiceRejected"
+                : issueResult.RejectionReason;
+            return await RejectRequestAsync(model, rejectionDelayMs, rejectionReason, ct).ConfigureAwait(false);
         }
 
         // Issuance thành công → set cookie qua codec, redirect đến trang Verify.
+        var expiresAtUtc = issueResult.ExpiresAtUtc
+            ?? _timeProvider.GetUtcNow().AddSeconds(issueResult.ExpiresInSeconds ?? _config.OtpTtlSeconds);
+        var resendAvailableAtUtc = _timeProvider.GetUtcNow().AddSeconds(
+            issueResult.ResendCooldownRemainingSeconds ?? _config.ResendCooldownSeconds);
+        var maskedPhone = !string.IsNullOrWhiteSpace(issueResult.MaskedPhone)
+            ? issueResult.MaskedPhone
+            : _normalizer.MaskLast4(submittedPhoneNumber);
+
         var payload = new SessionCookiePayload(
             TenantKey: tenant.TenantKey,
-            PhoneE164Hash: issueResult.PhoneE164Hash,
-            ExpiresAtUtc: issueResult.ExpiresAtUtc.Value);
+            PhoneE164Hash: Sha256HexShort(submittedPhoneNumber, chars: 64),
+            ExpiresAtUtc: expiresAtUtc,
+            PhoneNumber: submittedPhoneNumber,
+            ClientId: clientId,
+            MaskedPhone: maskedPhone,
+            ResendAvailableAtUtc: resendAvailableAtUtc);
+
+        if (!string.IsNullOrWhiteSpace(issueResult.GeneratedOtp))
+        {
+            TempData["PhoneOtpGeneratedOtp"] = issueResult.GeneratedOtp;
+        }
 
         var token = _cookieCodec.Protect(payload);
 
         Response.Cookies.Append(
             PhoneOtpSessionCookieCodec.CookieName,
             token,
-            BuildSessionCookieOptions(issueResult.ExpiresAtUtc.Value));
+            BuildSessionCookieOptions(expiresAtUtc));
 
         var redirectUrl = BuildVerifyRedirectUrl(model.ReturnUrl);
 
@@ -235,13 +255,28 @@ public sealed class PhoneLoginController : Controller
             return redirectResult!;
         }
 
-        var model = new PhoneVerifyViewModel
+        var cooldownRemaining = 0;
+
+
+        if (payload!.ResendAvailableAtUtc is { } resendAvailableAtUtc)
         {
-            ReturnUrl = returnUrl,
-            MaskedPhone = "******",
-            OtpLength = _config.OtpLength,
-            ResendCooldownRemainingSeconds = 0
-        };
+            var remaining = resendAvailableAtUtc - _timeProvider.GetUtcNow();
+            if (remaining > TimeSpan.Zero)
+            {
+                cooldownRemaining = (int)Math.Ceiling(remaining.TotalSeconds);
+            }
+        }
+
+        var model = BuildVerifyModel(
+            returnUrl,
+            payload.MaskedPhone ?? _normalizer.MaskLast4(payload.PhoneNumber ?? string.Empty),
+            cooldownRemaining);
+
+        if (TempData.TryGetValue("PhoneOtpGeneratedOtp", out var generatedOtp))
+        {
+            ViewData["PhoneOtpGeneratedOtp"] = generatedOtp;
+        }
+
 
         // Cookie mới issue ở step 1: chưa có failure nào, không có cooldown ở GET.
         _ = payload; // payload validated ở trên.
@@ -269,16 +304,17 @@ public sealed class PhoneLoginController : Controller
             return redirectResult!;
         }
 
-        var verifyRequest = new VerifyOtpRequest(
-            TenantKey: payload!.TenantKey,
-            PhoneE164Hash: payload.PhoneE164Hash,
-            SubmittedOtp: model.Otp ?? string.Empty,
-            RemoteIp: GetRemoteIp());
-
-        VerifyOtpResult verifyResult;
+        ExternalPhoneOtpVerifyResult verifyResult;
         try
         {
-            verifyResult = await _phoneOtpService.VerifyAsync(verifyRequest, ct).ConfigureAwait(false);
+            verifyResult = await _externalPhoneOtpClient.VerifyAsync(
+                new ExternalPhoneOtpVerifyRequest(
+                    PhoneNumber: payload!.PhoneNumber ?? string.Empty,
+                    Otp: model.Otp ?? string.Empty,
+                    TenantKey: payload.TenantKey,
+                    ClientId: payload.ClientId ?? await ResolveClientIdAsync(model.ReturnUrl).ConfigureAwait(false),
+                    RemoteIp: GetRemoteIp()),
+                ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -288,7 +324,7 @@ public sealed class PhoneLoginController : Controller
         {
             _logger.LogError(
                 ex,
-                "PhoneOtpVerify: unexpected error during VerifyAsync. {Event} {TenantKey} {RemoteIp} {Outcome}",
+                "PhoneOtpVerify: unexpected error during external verify. {Event} {TenantKey} {RemoteIp} {Outcome}",
                 "PhoneOtpVerify",
                 payload.TenantKey,
                 GetRemoteIp(),
@@ -296,33 +332,32 @@ public sealed class PhoneLoginController : Controller
             return RenderVerifyWithError(model);
         }
 
-        if (verifyResult.Outcome != VerifyOutcome.Succeeded || string.IsNullOrEmpty(verifyResult.UserId))
+        if (!verifyResult.Succeeded)
         {
             // Nếu Exhausted/Expired/NoSession — record đã bị xoá ở service. Clear cookie để user
             // bắt đầu lại flow từ trang Login.
-            if (verifyResult.Outcome == VerifyOutcome.Exhausted
-                || verifyResult.Outcome == VerifyOutcome.Expired
-                || verifyResult.Outcome == VerifyOutcome.NoSession)
-            {
-                ClearSessionCookie();
-            }
-
             return RenderVerifyWithError(model);
         }
 
         // R4.1 — Capture Candidate_Set TRƯỚC khi continuation tiếp tục (record đã bị
         // service.DeleteAsync xoá; VerifyOtpResult đã carry CandidateUserIds + PhoneE164).
         // Fallback `[UserId]` cho legacy / single-user shape (R2.6, R14.4).
-        var candidateUserIds = verifyResult.CandidateUserIds is { Count: > 0 } cs
-            ? cs
-            : new[] { verifyResult.UserId! };
-        var multiAccountEnabled = _config.MultiAccount.Enabled;
+        var candidateUserNames = verifyResult.UserNames?
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? Array.Empty<string>();
 
-        if (candidateUserIds.Count == 1)
+        if (candidateUserNames.Length == 0)
+        {
+            return RenderVerifyWithError(model);
+        }
+        var multiAccountEnabled = _config.IsMultiAccountEnabled(payload.TenantKey);
+
+        if (candidateUserNames.Length == 1)
         {
             // R4.2 — Single-user continuation: byte-equivalent với spec gốc phone-otp-login.
             return await SignInSingleCandidateAsync(
-                userId: candidateUserIds[0],
+                userName: candidateUserNames[0],
                 tenantKey: payload.TenantKey,
                 returnUrl: model.ReturnUrl,
                 model: model).ConfigureAwait(false);
@@ -340,7 +375,7 @@ public sealed class PhoneLoginController : Controller
                 payload.TenantKey,
                 GetRemoteIp(),
                 "Rejected",
-                candidateUserIds.Count);
+                candidateUserNames.Length);
             ClearSessionCookie();
             return RenderVerifyWithError(model);
         }
@@ -366,7 +401,7 @@ public sealed class PhoneLoginController : Controller
         var ctx = new AccountSelectContext(
             TenantKey: payload.TenantKey,
             PhoneE164Hash: payload.PhoneE164Hash,
-            CandidateUserIds: candidateUserIds,
+            CandidateUserIds: candidateUserNames,
             IssuedAtUtc: now,
             ExpiresAtUtc: now.Add(ttl),
             OtpRecordKey: $"{payload.TenantKey}:{payload.PhoneE164Hash}",
@@ -381,10 +416,7 @@ public sealed class PhoneLoginController : Controller
         // không phải lookup record (record đã delete bởi VerifyAsync). PhoneE164 trên
         // verifyResult là server-only payload; chỉ MaskedPhone (4 dot + last 4) được expose
         // ra view (R10.5).
-        if (!string.IsNullOrEmpty(verifyResult.PhoneE164))
-        {
-            TempData["PhoneOtpMaskedPhone"] = _normalizer.MaskLast4(verifyResult.PhoneE164);
-        }
+        TempData["PhoneOtpMaskedPhone"] = payload.MaskedPhone ?? _normalizer.MaskLast4(payload.PhoneNumber ?? string.Empty);
 
         // R4.5, R10.2 — log Information với CandidateCount + PhoneSha8 redacted (KHÔNG log
         // raw user-id, raw phone, raw cookie payload).
@@ -394,9 +426,9 @@ public sealed class PhoneLoginController : Controller
             payload.TenantKey,
             Sha8(payload.PhoneE164Hash),
             GetRemoteIp(),
-            candidateUserIds.Count);
+            candidateUserNames.Length);
 
-        return Redirect(BuildSelectAccountRedirectUrl(model.ReturnUrl));
+        return RedirectForAjaxOrStandard(BuildSelectAccountRedirectUrl(model.ReturnUrl));
     }
 
     /// <summary>
@@ -406,12 +438,20 @@ public sealed class PhoneLoginController : Controller
     /// (GetAuthorizationContextAsync → IsNativeClient → IsLocalUrl → ~/).
     /// </summary>
     private async Task<IActionResult> SignInSingleCandidateAsync(
-        string userId,
+        string userName,
         string tenantKey,
         string? returnUrl,
         PhoneVerifyViewModel model)
     {
-        var user = await _userManager.FindByIdAsync(userId).ConfigureAwait(false);
+        var now = _timeProvider.GetUtcNow();
+        var user = await _userManager.Users
+            .Where(u => u.UserName == userName
+                     && u.TenantKey == tenantKey
+                     && (!u.LockoutEnabled
+                         || !u.LockoutEnd.HasValue
+                         || u.LockoutEnd <= now))
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
         if (user is null)
         {
             _logger.LogError(
@@ -425,6 +465,28 @@ public sealed class PhoneLoginController : Controller
 
         // Step 1 cookie không còn cần thiết sau verify thành công.
         ClearSessionCookie();
+
+        if (!string.Equals(user.TenantKey, tenantKey, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "PhoneOtpVerify: single-candidate user does not belong to tenant. {Event} {TenantKey} {Outcome}",
+                "PhoneOtpVerify",
+                tenantKey,
+                "Rejected");
+            ClearSessionCookie();
+            return RenderVerifyWithError(model);
+        }
+
+        if (user.LockoutEnd is { } lockoutEnd && lockoutEnd > _timeProvider.GetUtcNow())
+        {
+            _logger.LogWarning(
+                "PhoneOtpVerify: single-candidate user is locked out. {Event} {TenantKey} {Outcome}",
+                "PhoneOtpVerify",
+                tenantKey,
+                "Rejected");
+            ClearSessionCookie();
+            return RenderVerifyWithError(model);
+        }
 
         await _signInManager.SignInAsync(user, isPersistent: false).ConfigureAwait(false);
 
@@ -459,24 +521,24 @@ public sealed class PhoneLoginController : Controller
         {
             if (context.IsNativeClient())
             {
-                return this.LoadingPage("Redirect", returnUrl);
+                return RedirectForAjaxOrStandard(returnUrl);
             }
 
-            return Redirect(returnUrl!);
+            return RedirectForAjaxOrStandard(returnUrl);
         }
 
         if (Url.IsLocalUrl(returnUrl))
         {
-            return Redirect(returnUrl!);
+            return RedirectForAjaxOrStandard(returnUrl);
         }
 
         if (string.IsNullOrEmpty(returnUrl))
         {
-            return Redirect("~/");
+            return RedirectForAjaxOrStandard("~/");
         }
 
         // returnUrl non-empty nhưng không phải authorization context và không local → từ chối an toàn.
-        return Redirect("~/");
+        return RedirectForAjaxOrStandard("~/");
     }
 
     /// <summary>
@@ -493,29 +555,20 @@ public sealed class PhoneLoginController : Controller
         }
 
         var returnUrl = model?.ReturnUrl;
-        var maskedPhone = "******";
+        var maskedPhone = payload!.MaskedPhone ?? _normalizer.MaskLast4(payload.PhoneNumber ?? string.Empty);
 
         // Cần lookup record để lấy lại E164 (cookie chỉ chứa hash, controller không có raw phone).
-        OtpStoreRecord? existing;
-        try
+        if (string.IsNullOrWhiteSpace(payload!.PhoneNumber))
         {
-            existing = await _store.GetAsync(payload!.TenantKey, payload.PhoneE164Hash, ct).ConfigureAwait(false);
+            ClearSessionCookie();
+            return RedirectToLoginPreservingReturnUrl(returnUrl);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+
+        var existing = new OtpStoreRecord
         {
-            return new EmptyResult();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "PhoneOtpResend: store lookup failed. {Event} {TenantKey} {RemoteIp} {Outcome}",
-                "PhoneOtpResend",
-                payload.TenantKey,
-                GetRemoteIp(),
-                "Rejected");
-            return RenderVerifyWithError(BuildVerifyModel(returnUrl, maskedPhone, 0));
-        }
+            TenantKey = payload.TenantKey,
+            PhoneE164 = payload.PhoneNumber
+        };
 
         if (existing is null)
         {
@@ -526,16 +579,17 @@ public sealed class PhoneLoginController : Controller
 
         maskedPhone = _normalizer.MaskLast4(existing.PhoneE164);
 
-        var resendRequest = new IssueOtpRequest(
-            RawPhone: existing.PhoneE164,
-            TenantKey: payload.TenantKey,
-            RemoteIp: GetRemoteIp(),
-            ReturnUrl: returnUrl ?? string.Empty);
-
-        IssueOtpResult resendResult;
+        ExternalPhoneOtpIssueResult resendResult;
         try
         {
-            resendResult = await _phoneOtpService.ResendAsync(resendRequest, ct).ConfigureAwait(false);
+            resendResult = await _externalPhoneOtpClient.RequestAsync(
+                new ExternalPhoneOtpIssueRequest(
+                    PhoneNumber: existing.PhoneE164,
+                    TenantKey: payload.TenantKey,
+                    ClientId: payload.ClientId ?? await ResolveClientIdAsync(returnUrl).ConfigureAwait(false),
+                    RemoteIp: GetRemoteIp(),
+                    ReturnUrl: returnUrl ?? string.Empty),
+                ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -545,7 +599,7 @@ public sealed class PhoneLoginController : Controller
         {
             _logger.LogError(
                 ex,
-                "PhoneOtpResend: unexpected error during ResendAsync. {Event} {TenantKey} {RemoteIp} {Outcome}",
+                "PhoneOtpResend: unexpected error during external request. {Event} {TenantKey} {RemoteIp} {Outcome}",
                 "PhoneOtpResend",
                 payload.TenantKey,
                 GetRemoteIp(),
@@ -553,23 +607,37 @@ public sealed class PhoneLoginController : Controller
             return RenderVerifyWithError(BuildVerifyModel(returnUrl, maskedPhone, 0));
         }
 
-        if (resendResult.Outcome == IssueOutcome.Issued
-            && !string.IsNullOrEmpty(resendResult.PhoneE164Hash)
-            && resendResult.ExpiresAtUtc is not null)
+        if (resendResult.Succeeded)
         {
             // Refresh cookie với expiry mới của OTP.
+            var expiresAtUtc = resendResult.ExpiresAtUtc
+                ?? _timeProvider.GetUtcNow().AddSeconds(resendResult.ExpiresInSeconds ?? _config.OtpTtlSeconds);
+            var resendAvailableAtUtc = _timeProvider.GetUtcNow().AddSeconds(
+                resendResult.ResendCooldownRemainingSeconds ?? _config.ResendCooldownSeconds);
             var newPayload = new SessionCookiePayload(
                 TenantKey: payload.TenantKey,
-                PhoneE164Hash: resendResult.PhoneE164Hash,
-                ExpiresAtUtc: resendResult.ExpiresAtUtc.Value);
+                PhoneE164Hash: payload.PhoneE164Hash,
+                ExpiresAtUtc: expiresAtUtc,
+                PhoneNumber: payload.PhoneNumber,
+                ClientId: payload.ClientId,
+                MaskedPhone: !string.IsNullOrWhiteSpace(resendResult.MaskedPhone) ? resendResult.MaskedPhone : maskedPhone,
+                ResendAvailableAtUtc: resendAvailableAtUtc);
 
             Response.Cookies.Append(
                 PhoneOtpSessionCookieCodec.CookieName,
                 _cookieCodec.Protect(newPayload),
-                BuildSessionCookieOptions(resendResult.ExpiresAtUtc.Value));
+                BuildSessionCookieOptions(expiresAtUtc));
 
-            var successModel = BuildVerifyModel(returnUrl, maskedPhone, 0);
+            var successModel = BuildVerifyModel(
+                returnUrl,
+                newPayload.MaskedPhone ?? maskedPhone,
+                resendResult.ResendCooldownRemainingSeconds ?? _config.ResendCooldownSeconds);
             ViewData["PhoneOtpResendSuccess"] = true;
+            if (!string.IsNullOrWhiteSpace(resendResult.GeneratedOtp))
+            {
+                ViewData["PhoneOtpGeneratedOtp"] = resendResult.GeneratedOtp;
+            }
+
             return View(VerifyViewPath, successModel);
         }
 
@@ -637,11 +705,15 @@ public sealed class PhoneLoginController : Controller
 
         // Load candidate users — silent omit deleted/disabled (R5.6). Filter theo tenant +
         // PhoneNumberConfirmed để tránh leak candidate đã bị off-board (R9.3).
-        var candidateIds = ctx.CandidateUserIds?.ToArray() ?? Array.Empty<string>();
+        // Candidate set bị giới hạn theo tenant và chỉ giữ account chưa lockout.
+        var candidateNames = ctx.CandidateUserIds?.ToArray() ?? Array.Empty<string>();
+        var now = _timeProvider.GetUtcNow();
         var users = await _userManager.Users
-            .Where(u => candidateIds.Contains(u.Id)
+            .Where(u => candidateNames.Contains(u.UserName!)
                      && u.TenantKey == tenantKey
-                     && u.PhoneNumberConfirmed)
+                     && (!u.LockoutEnabled
+                         || !u.LockoutEnd.HasValue
+                         || u.LockoutEnd <= now))
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
@@ -654,9 +726,10 @@ public sealed class PhoneLoginController : Controller
         }
 
         // R5.5 — preserve deterministic order locked-in từ cookie payload (R2.3).
-        var byId = users.ToDictionary(u => u.Id, StringComparer.Ordinal);
+        var byUserName = users.ToDictionary(u => u.UserName!, StringComparer.Ordinal);
+        var byId = byUserName;
         var ordered = ctx.CandidateUserIds
-            .Where(id => byId.ContainsKey(id))
+            .Where(userName => byUserName.ContainsKey(userName))
             .Where(id => !string.IsNullOrEmpty(byId[id].UserName)) // R12.9 — omit empty UserName
             .Select(id => new CandidateOption(
                 SelectionToken: _tokenProtector.Issue(id),
@@ -818,7 +891,7 @@ public sealed class PhoneLoginController : Controller
         // Gate 6: SelectionToken resolve — fail → RegisterVerifyFailureAsync + log Warning +
         // DelayJitter + 302 (R8.6).
         // -----------------------------------------------------------------
-        if (!_tokenProtector.TryResolve(SelectionToken ?? string.Empty, out var resolvedUserId))
+        if (!_tokenProtector.TryResolve(SelectionToken ?? string.Empty, out var resolvedUserName))
         {
             await _rateLimiter
                 .RegisterVerifyFailureAsync(tenantKey, ctx.PhoneE164Hash, ct)
@@ -843,19 +916,19 @@ public sealed class PhoneLoginController : Controller
         // tập (rất khó vì cần data-protection key), request vẫn bị reject.
         // -----------------------------------------------------------------
         if (ctx.CandidateUserIds is null
-            || !ctx.CandidateUserIds.Contains(resolvedUserId, StringComparer.Ordinal))
+            || !ctx.CandidateUserIds.Contains(resolvedUserName, StringComparer.Ordinal))
         {
             await _rateLimiter
                 .RegisterVerifyFailureAsync(tenantKey, ctx.PhoneE164Hash, ct)
                 .ConfigureAwait(false);
             _logger.LogWarning(
-                "PhoneOtpAccountSelectTokenInvalid: resolved userId not in candidate set. "
+                "PhoneOtpAccountSelectTokenInvalid: resolved userName not in candidate set. "
                 + "{Event} {TenantKey} {PhoneSha8} {Outcome} {Reason}",
                 "PhoneOtpAccountSelectTokenInvalid",
                 tenantKey,
                 Sha8(ctx.PhoneE164Hash),
                 "Rejected",
-                "userIdNotInSet");
+                "userNameNotInSet");
             await DelayJitterAsync(ct).ConfigureAwait(false);
             return RedirectToLoginPreservingReturnUrl(ReturnUrl);
         }
@@ -868,10 +941,13 @@ public sealed class PhoneLoginController : Controller
         // Filter (TenantKey + PhoneNumberConfirmed) đảm bảo không leak candidate đã off-board
         // (R9.3). KHÔNG clear cookie ở Gate này — user có thể chọn lại candidate khác.
         // -----------------------------------------------------------------
+        // Chỉ cho phép account thuộc tenant hiện tại và chưa lockout đi tiếp.
         var user = await _userManager.Users
-            .Where(u => u.Id == resolvedUserId
+            .Where(u => u.UserName == resolvedUserName
                      && u.TenantKey == tenantKey
-                     && u.PhoneNumberConfirmed)
+                     && (!u.LockoutEnabled
+                         || !u.LockoutEnd.HasValue
+                         || u.LockoutEnd <= now))
             .FirstOrDefaultAsync(ct)
             .ConfigureAwait(false);
 
@@ -1121,6 +1197,49 @@ public sealed class PhoneLoginController : Controller
     /// (R11.4, R11.5, R18.7). Cancellation-safe: nếu <paramref name="ct"/> được cancel
     /// trong delay, swallow exception (caller sẽ tiếp tục return EmptyResult/redirect).
     /// </summary>
+    private static string ResolveSubmittedPhoneNumber(PhoneRequestViewModel model)
+    {
+        if (!string.IsNullOrWhiteSpace(model.PhoneNumber))
+        {
+            return model.PhoneNumber.Trim();
+        }
+
+        var dialCode = (model.DialCode ?? string.Empty).Trim();
+        var localNumber = DigitsOnly(model.LocalPhoneNumber);
+        if (string.IsNullOrWhiteSpace(dialCode) || string.IsNullOrWhiteSpace(localNumber))
+        {
+            return string.Empty;
+        }
+
+        if (localNumber.StartsWith('0'))
+        {
+            localNumber = localNumber.TrimStart('0');
+        }
+
+        return string.IsNullOrWhiteSpace(localNumber)
+            ? string.Empty
+            : $"{dialCode}{localNumber}";
+    }
+
+    private static string DigitsOnly(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (char.IsDigit(ch))
+            {
+                builder.Append(ch);
+            }
+        }
+
+        return builder.ToString();
+    }
+
     private static async Task DelayJitterAsync(CancellationToken ct)
     {
         var delayMs = RandomNumberGenerator.GetInt32(100, 301);
@@ -1149,9 +1268,52 @@ public sealed class PhoneLoginController : Controller
         return null;
     }
 
+    private async Task<string> ResolveClientIdAsync(string? returnUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(returnUrl))
+        {
+            var context = await _interaction.GetAuthorizationContextAsync(returnUrl).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(context?.Client?.ClientId))
+            {
+                return context.Client.ClientId;
+            }
+
+            var queryIndex = returnUrl.IndexOf('?', StringComparison.Ordinal);
+            if (queryIndex >= 0 && queryIndex < returnUrl.Length - 1)
+            {
+                var query = QueryHelpers.ParseQuery(returnUrl[(queryIndex + 1)..]);
+                if (query.TryGetValue("client_id", out var clientIds) && clientIds.Count > 0)
+                {
+                    return clientIds[0] ?? string.Empty;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
     private string GetRemoteIp()
     {
         return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    private IActionResult RedirectForAjaxOrStandard(string? url)
+    {
+        var safeUrl = string.IsNullOrWhiteSpace(url) ? "~/" : url;
+        if (IsAjaxVerifyRequest())
+        {
+            return Json(new { redirectUrl = safeUrl });
+        }
+
+        return Redirect(safeUrl);
+    }
+
+    private bool IsAjaxVerifyRequest()
+    {
+        return string.Equals(
+            Request.Headers["X-Requested-With"],
+            "XMLHttpRequest",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private PhoneVerifyViewModel BuildVerifyModel(string? returnUrl, string maskedPhone, int cooldownRemaining)

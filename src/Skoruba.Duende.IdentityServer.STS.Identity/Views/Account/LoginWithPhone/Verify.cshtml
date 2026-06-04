@@ -14,6 +14,7 @@
     // it just renders whatever the controller placed under the existing key.
     var verifyError = ViewData["PhoneOtpVerifyError"] as string;
     var resendSuccess = (ViewData["PhoneOtpResendSuccess"] as bool?) ?? false;
+    var generatedOtp = ViewData["PhoneOtpGeneratedOtp"] as string;
 
     var cooldown = Model?.ResendCooldownRemainingSeconds ?? 0;
     var resendDisabled = cooldown > 0;
@@ -34,19 +35,35 @@
     };
 }
 
+@section styles {
+    <link rel="stylesheet" href="~/css/login-tabs.css" asp-append-version="true" />
+}
+
+@section scripts {
+    <script src="~/js/phone-verify-countdown.js" defer asp-append-version="true"></script>
+    <script src="~/js/phone-verify-submit.js" defer asp-append-version="true"></script>
+}
+
 <div class="login-shell login-shell--gradient">
     <div class="login-shell__lang-floating">
         @await Html.PartialAsync("Common/_LoginLanguageSwitcher", headerModel)
     </div>
 
     <main class="login-shell__main">
-        <section class="login-shell__logo-block flex flex-col items-center text-center gap-2 mb-6">
-            <h1 class="login-shell__title text-2xl font-bold">
+        <section class="verify-shell__hero">
+            <div class="verify-shell__badge">
+                <lucideicon name="shield-check" class="h-5 w-5" aria-hidden="true" />
+            </div>
+            <h1 class="login-shell__title">
                 @Localizer["LoginWithPhone.Verify.Title"]
             </h1>
-            <p class="login-shell__subtitle text-sm text-muted-foreground">
+            <p class="login-shell__subtitle">
                 @Localizer["LoginWithPhone.Verify.Subtitle"]
             </p>
+            <div class="verify-shell__phone-chip" id="phoneOtpMaskedPhone">
+                <span class="verify-shell__phone-chip-label">@Localizer["LoginWithPhone.MaskedPhonePrefix"]</span>
+                <strong class="verify-shell__phone-chip-value">@Model?.MaskedPhone</strong>
+            </div>
         </section>
 
         @if (TenantContextAccessor.Current != null)
@@ -54,8 +71,8 @@
             @await Html.PartialAsync("Common/_LoginTenantPill")
         }
 
-        <div class="card login-card">
-            <div class="card-content py-6 space-y-5">
+        <div class="card login-card verify-shell__card">
+            <div class="card-content verify-shell__card-content">
                 @if (resendSuccess)
                 {
                     <div class="alert alert-success" role="alert">
@@ -63,22 +80,30 @@
                     </div>
                 }
 
-                @if (!string.IsNullOrEmpty(verifyError))
+                <div class="alert alert-danger @(!string.IsNullOrEmpty(verifyError) ? string.Empty : "hidden")"
+                     role="alert"
+                     data-phone-otp-verify-error="true"
+                     aria-live="polite">
+                    @verifyError
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(generatedOtp))
                 {
-                    <div class="alert alert-danger" role="alert">
-                        @verifyError
+                    <div class="verify-shell__dev-otp" role="status">
+                        <div class="verify-shell__dev-otp-label">SMS delivery disabled</div>
+                        <div class="verify-shell__dev-otp-code">@generatedOtp</div>
+                        <div class="verify-shell__dev-otp-help">Use this OTP to complete the phone login flow without sending a real SMS.</div>
                     </div>
                 }
 
-                <p class="text-sm text-muted-foreground">
-                    @Localizer["LoginWithPhone.MaskedPhonePrefix"]
-                    <span class="font-medium text-foreground">@Model?.MaskedPhone</span>
-                </p>
-
-                <form method="post" action="/Account/LoginWithPhone/Verify" novalidate class="space-y-5">
+                <form method="post"
+                      action="/Account/LoginWithPhone/Verify"
+                      novalidate
+                      class="verify-shell__form"
+                      id="phoneOtpVerifyForm">
                     @Html.AntiForgeryToken()
 
-                    <div class="form-item">
+                    <div class="form-item verify-shell__otp-field">
                         <label class="form-label" for="phoneOtpCode">
                             @Localizer["LoginWithPhone.OtpLabel"]
                         </label>
@@ -95,42 +120,50 @@
                                    required
                                    autofocus />
                         </div>
-                        <span id="phoneOtpMaskedPhone" class="sr-only">
-                            @Localizer["LoginWithPhone.MaskedPhonePrefix"] @Model?.MaskedPhone
-                        </span>
+                        <p class="verify-shell__otp-hint">
+                            @Localizer["LoginWithPhone.MaskedPhonePrefix"] <strong>@Model?.MaskedPhone</strong>
+                        </p>
                     </div>
 
                     <input type="hidden" name="ReturnUrl" value="@returnUrl" />
 
-                    <button type="submit" class="btn-gradient-primary w-full inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium">
+                    <button type="submit"
+                            class="btn-gradient-primary verify-shell__primary-action"
+                            data-phone-otp-verify-submit="true">
                         @Localizer["LoginWithPhone.VerifySubmit"]
                     </button>
                 </form>
 
-                <form method="post" action="/Account/LoginWithPhone/Resend" novalidate class="text-center">
+                <form method="post" action="/Account/LoginWithPhone/Resend" novalidate class="verify-shell__secondary-actions">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="ReturnUrl" value="@returnUrl" />
                     @if (resendDisabled)
                     {
                         <button type="submit"
-                                class="btn-link text-sm text-primary hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                                class="btn-link verify-shell__resend-link disabled:opacity-60 disabled:cursor-not-allowed"
+                                data-resend-button="true"
+                                data-resend-label="@Localizer["LoginWithPhone.Resend"]"
+                                data-cooldown-seconds="@cooldown"
                                 disabled
                                 aria-disabled="true">
-                            @Localizer["LoginWithPhone.Resend"] (@cooldown s)
+                            <span data-resend-text="true">@Localizer["LoginWithPhone.Resend"] (@cooldown s)</span>
                         </button>
                     }
                     else
                     {
                         <button type="submit"
-                                class="btn-link text-sm text-primary hover:underline"
+                                class="btn-link verify-shell__resend-link"
+                                data-resend-button="true"
+                                data-resend-label="@Localizer["LoginWithPhone.Resend"]"
+                                data-cooldown-seconds="0"
                                 aria-disabled="false">
-                            @Localizer["LoginWithPhone.Resend"]
+                            <span data-resend-text="true">@Localizer["LoginWithPhone.Resend"]</span>
                         </button>
                     }
                 </form>
 
-                <p class="text-center text-sm">
-                    <a href="@loginHref" class="link-secondary text-muted-foreground hover:text-foreground hover:underline">
+                <p class="verify-shell__back-link-wrap">
+                    <a href="@loginHref" class="verify-shell__back-link">
                         @Localizer["LoginWithPhone.BackToLogin"]
                     </a>
                 </p>

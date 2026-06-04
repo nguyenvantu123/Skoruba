@@ -13,4 +13,6 @@ public sealed record IssueOtpResult(
     string? PhoneE164Hash,
     DateTimeOffset? ExpiresAtUtc,
     int? ResendCooldownRemainingSeconds,
-    IReadOnlyList<string>? CandidateUserIds = null);
+    IReadOnlyList<string>? CandidateUserIds = null,
+    string? RejectionReason = null,
+    string? GeneratedOtp = null);

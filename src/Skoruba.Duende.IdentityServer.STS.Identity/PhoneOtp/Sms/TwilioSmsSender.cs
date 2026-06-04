@@ -26,9 +26,8 @@ public sealed class TwilioSmsSender : ISmsSender
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromMilliseconds(_config.TimeoutMilliseconds));
 
-        var last4 = e164PhoneNumber.Length >= 4
-            ? e164PhoneNumber[^4..]
-            : e164PhoneNumber;
+        var toMasked = MaskPhoneNumber(e164PhoneNumber);
+        var fromMasked = MaskPhoneNumber(_config.FromNumber);
 
         for (int attempt = 0; attempt <= _config.MaxRetries; attempt++)
         {
@@ -41,8 +40,9 @@ public sealed class TwilioSmsSender : ISmsSender
                     client: TwilioClient.GetRestClient());
 
                 _logger.LogInformation(
-                    "Twilio SMS sent successfully. PhoneLast4={PhoneLast4}, MessageSid={MessageSid}",
-                    last4,
+                    "Twilio SMS sent successfully. ToMasked={ToMasked}, FromMasked={FromMasked}, MessageSid={MessageSid}",
+                    toMasked,
+                    fromMasked,
                     msg.Sid);
 
                 return SmsSendResult.Ok(msg.Sid);
@@ -50,24 +50,28 @@ public sealed class TwilioSmsSender : ISmsSender
             catch (ApiException ex) when (IsRetryable(ex) && attempt < _config.MaxRetries)
             {
                 _logger.LogWarning(
-                    "Twilio transient error, retrying. ErrorCode={ErrorCode}, Attempt={Attempt}",
+                    "Twilio transient error, retrying. ErrorCode={ErrorCode}, Attempt={Attempt}, ToMasked={ToMasked}, FromMasked={FromMasked}",
                     ex.Code,
-                    attempt);
+                    attempt,
+                    toMasked,
+                    fromMasked);
             }
             catch (ApiException ex)
             {
                 _logger.LogError(
-                    "Twilio send failed. ErrorCode={ErrorCode}, PhoneLast4={PhoneLast4}",
+                    "Twilio send failed. ErrorCode={ErrorCode}, ToMasked={ToMasked}, FromMasked={FromMasked}",
                     ex.Code,
-                    last4);
+                    toMasked,
+                    fromMasked);
 
                 return SmsSendResult.Failed(ex.Code.ToString(), ex.Message);
             }
             catch (OperationCanceledException)
             {
                 _logger.LogError(
-                    "Twilio send timed out. PhoneLast4={PhoneLast4}",
-                    last4);
+                    "Twilio send timed out. ToMasked={ToMasked}, FromMasked={FromMasked}",
+                    toMasked,
+                    fromMasked);
 
                 return SmsSendResult.Failed("timeout", "SMS send timed out.");
             }
@@ -75,16 +79,18 @@ public sealed class TwilioSmsSender : ISmsSender
             {
                 _logger.LogWarning(
                     ex,
-                    "Twilio network/IO error, retrying. Attempt={Attempt}, PhoneLast4={PhoneLast4}",
+                    "Twilio network/IO error, retrying. Attempt={Attempt}, ToMasked={ToMasked}, FromMasked={FromMasked}",
                     attempt,
-                    last4);
+                    toMasked,
+                    fromMasked);
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "Twilio send failed after retries. PhoneLast4={PhoneLast4}",
-                    last4);
+                    "Twilio send failed after retries. ToMasked={ToMasked}, FromMasked={FromMasked}",
+                    toMasked,
+                    fromMasked);
 
                 return SmsSendResult.Failed("network", ex.Message);
             }
@@ -106,5 +112,21 @@ public sealed class TwilioSmsSender : ISmsSender
 
         // All other codes (e.g. 20003 = auth failure) are permanent
         return false;
+    }
+
+    private static string MaskPhoneNumber(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            return "<empty>";
+        }
+
+        var trimmed = phoneNumber.Trim();
+        if (trimmed.Length <= 4)
+        {
+            return new string('*', trimmed.Length);
+        }
+
+        return $"{trimmed[..Math.Min(3, trimmed.Length)]}***{trimmed[^4..]}";
     }
 }

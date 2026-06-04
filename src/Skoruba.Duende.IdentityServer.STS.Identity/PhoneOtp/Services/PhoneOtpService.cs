@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
@@ -59,7 +60,7 @@ public sealed class PhoneOtpService : IPhoneOtpService
         {
             _logger.LogInformation("PhoneOtpRequest: normalize failed for input. {Event} {TenantKey} {Outcome}",
                 "PhoneOtpRequest", request.TenantKey, "Rejected");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "NormalizeFailed");
         }
 
         var phoneHash = Sha256Hex(e164);
@@ -71,7 +72,7 @@ public sealed class PhoneOtpService : IPhoneOtpService
         {
             _logger.LogWarning("PhoneOtpRequest: IP rate limit hit. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {RateLimitReason}",
                 "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected", "IpWindow");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "IpWindow");
         }
 
         // 3. Check phone cooldown
@@ -80,7 +81,12 @@ public sealed class PhoneOtpService : IPhoneOtpService
         {
             _logger.LogWarning("PhoneOtpRequest: phone cooldown active. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {RateLimitReason}",
                 "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected", "PhoneCooldown");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, cooldownCheck.CooldownRemainingSeconds);
+            return new IssueOtpResult(
+                IssueOutcome.Rejected,
+                null,
+                null,
+                cooldownCheck.CooldownRemainingSeconds,
+                RejectionReason: "PhoneCooldown");
         }
 
         // 4. Check phone lockout
@@ -89,35 +95,38 @@ public sealed class PhoneOtpService : IPhoneOtpService
         {
             _logger.LogWarning("PhoneOtpRequest: phone lockout active. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {RateLimitReason}",
                 "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected", "PhoneLockout");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "PhoneLockout");
         }
 
         // 5. Lookup user — match by E.164 first (canonical post-onboarding), fall
         //    back to legacy national-format candidates so users whose phone was
         //    saved before the OTP feature went live can still log in.
-        //    Each candidate is tried with PhoneNumberConfirmed=true and the
-        //    request's tenant scope to keep the security boundary intact.
+        //    Candidate set vẫn bị chặn theo tenant và bỏ qua account đang lockout
+        //    hiệu lực; user đã bị xóa tự nhiên không còn xuất hiện trong query.
         var phoneCandidates = BuildPhoneLookupCandidates(e164, request.RawPhone);
+        var now = _timeProvider.GetUtcNow();
         var users = await _userManager.Users
-            .Where(u => phoneCandidates.Contains(u.PhoneNumber)
-                        && u.PhoneNumberConfirmed
-                        && u.TenantKey == request.TenantKey)
+            .Where(u => u.TenantKey == request.TenantKey)
+            .Where(u => !u.LockoutEnabled
+                     || !u.LockoutEnd.HasValue
+                     || u.LockoutEnd <= now)
+            .Where(BuildPhoneLookupPredicate(phoneCandidates))
             .ToListAsync(ct);
 
         if (users.Count == 0)
         {
             _logger.LogInformation("PhoneOtpRequest: user lookup failed (count=0). {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
                 "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "UserLookupCount0");
         }
 
-        var multiEnabled = _config.MultiAccount.Enabled;
+        var multiEnabled = _config.IsMultiAccountEnabled(request.TenantKey);
         if (users.Count > 1 && !multiEnabled)
         {
             // Legacy fail-closed (R1.3): nhiều user mà flag MultiAccount off → reject.
             _logger.LogInformation("PhoneOtpRequest: user lookup failed (count={UserCount}). {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
                 users.Count, "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Rejected");
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "UserLookupMultiple");
         }
 
         // users.Count == 1 (any flag) hoặc users.Count >= 1 (multi flag-on) → tiếp tục.
@@ -150,7 +159,6 @@ public sealed class PhoneOtpService : IPhoneOtpService
         var hash = ComputeHash(otp);
 
         // 8. Build OTP store record
-        var now = _timeProvider.GetUtcNow();
         var record = new OtpStoreRecord
         {
             OtpHash = hash,
@@ -172,20 +180,24 @@ public sealed class PhoneOtpService : IPhoneOtpService
 
         // 11. Send SMS
         var smsBody = $"Mã đăng nhập của bạn: {otp}. Mã có hiệu lực trong {_config.OtpTtlSeconds / 60} phút.";
-        var smsResult = await _smsSender.SendAsync(e164, smsBody, ct);
+        var deliveryResult = await DeliverOtpAsync(
+            request.TenantKey,
+            request.RemoteIp,
+            e164,
+            phoneHash,
+            otp,
+            async () => await _store.DeleteAsync(request.TenantKey, phoneHash, ct).ConfigureAwait(false),
+            ct).ConfigureAwait(false);
 
-        if (!smsResult.Succeeded)
+        if (!deliveryResult.Succeeded)
         {
-            _logger.LogError("PhoneOtpSmsSend: SMS delivery failed. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {ProviderErrorCode}",
-                "PhoneOtpSmsSend", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Failed", smsResult.ErrorCode);
-            await _store.DeleteAsync(request.TenantKey, phoneHash, ct);
-            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
+            return new IssueOtpResult(IssueOutcome.Rejected, null, null, null, RejectionReason: "SmsSendFailed");
         }
 
         _logger.LogInformation("PhoneOtpRequest: OTP issued successfully. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {CandidateCount}",
             "PhoneOtpRequest", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Issued", candidateIds.Length);
 
-        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null, candidateIds);
+        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null, candidateIds, GeneratedOtp: deliveryResult.GeneratedOtp);
     }
 
     public async Task<VerifyOtpResult> VerifyAsync(VerifyOtpRequest request, CancellationToken ct)
@@ -325,23 +337,71 @@ public sealed class PhoneOtpService : IPhoneOtpService
 
         // 11. Send SMS
         var smsBody = $"Mã đăng nhập của bạn: {otp}. Mã có hiệu lực trong {_config.OtpTtlSeconds / 60} phút.";
-        var smsResult = await _smsSender.SendAsync(e164, smsBody, ct);
+        var deliveryResult = await DeliverOtpAsync(
+            request.TenantKey,
+            request.RemoteIp,
+            e164,
+            phoneHash,
+            otp,
+            async () => await _store.DeleteAsync(request.TenantKey, phoneHash, ct).ConfigureAwait(false),
+            ct).ConfigureAwait(false);
 
-        if (!smsResult.Succeeded)
+        if (!deliveryResult.Succeeded)
         {
-            _logger.LogError("PhoneOtpSmsSend: SMS delivery failed on resend. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {ProviderErrorCode}",
-                "PhoneOtpSmsSend", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Failed", smsResult.ErrorCode);
-            await _store.DeleteAsync(request.TenantKey, phoneHash, ct);
             return new IssueOtpResult(IssueOutcome.Rejected, null, null, null);
         }
 
         _logger.LogInformation("PhoneOtpResend: OTP resent successfully. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
             "PhoneOtpResend", request.TenantKey, GetPhoneLast4(e164), phoneHash[..8], request.RemoteIp, "Issued");
 
-        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null);
+        return new IssueOtpResult(IssueOutcome.Issued, phoneHash, record.ExpiresAtUtc, null, GeneratedOtp: deliveryResult.GeneratedOtp);
     }
 
     #region Private Helpers
+
+    private async Task<(bool Succeeded, string? GeneratedOtp)> DeliverOtpAsync(
+        string tenantKey,
+        string remoteIp,
+        string e164,
+        string phoneHash,
+        string otp,
+        Func<Task> onFailure,
+        CancellationToken ct)
+    {
+        if (!_config.SmsDeliveryEnabled)
+        {
+            _logger.LogWarning(
+                "PhoneOtpSmsSend: SMS delivery bypassed by configuration. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome}",
+                "PhoneOtpSmsSend",
+                tenantKey,
+                GetPhoneLast4(e164),
+                phoneHash[..8],
+                remoteIp,
+                "Bypassed");
+
+            return (true, otp);
+        }
+
+        var smsBody = $"MÃ£ Ä‘Äƒng nháº­p cá»§a báº¡n: {otp}. MÃ£ cÃ³ hiá»‡u lá»±c trong {_config.OtpTtlSeconds / 60} phÃºt.";
+        var smsResult = await _smsSender.SendAsync(e164, smsBody, ct).ConfigureAwait(false);
+
+        if (!smsResult.Succeeded)
+        {
+            _logger.LogError(
+                "PhoneOtpSmsSend: SMS delivery failed. {Event} {TenantKey} {PhoneLast4} {PhoneSha8} {RemoteIp} {Outcome} {ProviderErrorCode}",
+                "PhoneOtpSmsSend",
+                tenantKey,
+                GetPhoneLast4(e164),
+                phoneHash[..8],
+                remoteIp,
+                "Failed",
+                smsResult.ErrorCode);
+            await onFailure().ConfigureAwait(false);
+            return (false, null);
+        }
+
+        return (true, null);
+    }
 
     private byte[] ComputeHash(string otp)
     {
@@ -442,6 +502,22 @@ public sealed class PhoneOtpService : IPhoneOtpService
             }
         }
         return deduped;
+    }
+
+    private static Expression<Func<UserIdentity, bool>> BuildPhoneLookupPredicate(IReadOnlyList<string> candidates)
+    {
+        var parameter = Expression.Parameter(typeof(UserIdentity), "u");
+        var phoneNumber = Expression.Property(parameter, nameof(UserIdentity.PhoneNumber));
+        Expression body = Expression.Constant(false);
+
+        foreach (var candidate in candidates.Where(static c => !string.IsNullOrWhiteSpace(c)))
+        {
+            body = Expression.OrElse(
+                body,
+                Expression.Equal(phoneNumber, Expression.Constant(candidate)));
+        }
+
+        return Expression.Lambda<Func<UserIdentity, bool>>(body, parameter);
     }
 
     #endregion

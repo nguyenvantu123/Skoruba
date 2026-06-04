@@ -15,17 +15,23 @@
 
     var phoneOtpEnabled = PhoneOtpOptions.Value.Enabled && TenantContextAccessor.Current != null;
     var phoneTabPreActive = phoneOtpEnabled
-        && TempData.Peek("PhoneTabPreActive") is bool phoneTabPreActiveFlag
+        && TempData["PhoneTabPreActive"] is bool phoneTabPreActiveFlag
         && phoneTabPreActiveFlag;
 
     if (phoneOtpEnabled)
     {
         ViewData["PhoneOtpReturnUrl"] = Model?.ReturnUrl;
 
-        var phoneOtpError = TempData.Peek("PhoneOtpError") as string;
+        var phoneOtpError = TempData["PhoneOtpError"] as string;
         if (!string.IsNullOrEmpty(phoneOtpError))
         {
             ViewData["PhoneOtpError"] = phoneOtpError;
+        }
+
+        var phoneOtpRejectionReason = TempData["PhoneOtpRejectionReason"] as string;
+        if (!string.IsNullOrEmpty(phoneOtpRejectionReason))
+        {
+            ViewData["PhoneOtpRejectionReason"] = phoneOtpRejectionReason;
         }
     }
 

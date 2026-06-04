@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 using System.Linq;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Skoruba.AuditLogging.Constants;
 using Skoruba.AuditLogging.Events;
@@ -12,19 +13,26 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Configuration.AuditLogging
     {
         public ApiAuditSubject(IHttpContextAccessor accessor, AuditLoggingConfiguration auditLoggingConfiguration)
         {
-            var subClaim = accessor.HttpContext.User.FindFirst(auditLoggingConfiguration.SubjectIdentifierClaim);
-            var nameClaim = accessor.HttpContext.User.FindFirst(auditLoggingConfiguration.SubjectNameClaim);
-            var clientIdClaim = accessor.HttpContext.User.FindFirst(auditLoggingConfiguration.ClientIdClaim);
+            var httpContext = accessor.HttpContext;
+            var user = httpContext?.User;
 
-            SubjectIdentifier = subClaim == null ? clientIdClaim.Value : subClaim.Value;
-            SubjectName = subClaim == null ? clientIdClaim.Value : nameClaim?.Value;
+            var subClaim = FindClaim(user, auditLoggingConfiguration.SubjectIdentifierClaim);
+            var nameClaim = FindClaim(user, auditLoggingConfiguration.SubjectNameClaim);
+            var clientIdClaim = FindClaim(user, auditLoggingConfiguration.ClientIdClaim);
+            var fallbackSubject = clientIdClaim?.Value ?? "system";
+            var subjectIdentifier = subClaim?.Value ?? fallbackSubject;
+
+            SubjectIdentifier = subjectIdentifier;
+            SubjectName = subClaim == null
+                ? fallbackSubject
+                : nameClaim?.Value ?? subjectIdentifier;
             SubjectType = subClaim == null ? AuditSubjectTypes.Machine : AuditSubjectTypes.User;
 
             SubjectAdditionalData = new
             {
-                RemoteIpAddress = accessor.HttpContext.Connection?.RemoteIpAddress?.ToString(),
-                LocalIpAddress = accessor.HttpContext.Connection?.LocalIpAddress?.ToString(),
-                Claims = accessor.HttpContext.User.Claims?.Select(x => new { x.Type, x.Value })
+                RemoteIpAddress = httpContext?.Connection?.RemoteIpAddress?.ToString(),
+                LocalIpAddress = httpContext?.Connection?.LocalIpAddress?.ToString(),
+                Claims = user?.Claims?.Select(x => new { x.Type, x.Value }).ToArray()
             };
         }
 
@@ -35,5 +43,12 @@ namespace Skoruba.Duende.IdentityServer.Admin.UI.Api.Configuration.AuditLogging
         public object SubjectAdditionalData { get; set; }
 
         public string SubjectIdentifier { get; set; }
+
+        private static Claim? FindClaim(ClaimsPrincipal? principal, string? claimType)
+        {
+            return string.IsNullOrWhiteSpace(claimType)
+                ? null
+                : principal?.FindFirst(claimType);
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,6 +29,12 @@ public static class PhoneOtpServiceCollectionExtensions
         {
             throw new InvalidOperationException(
                 "PhoneOtpLogin:MultiAccount:Enabled cannot be true when PhoneOtpLogin:Enabled is false.");
+        }
+
+        if (!phoneOtpConfig.Enabled && phoneOtpConfig.HasAnyMultiAccountEnabled())
+        {
+            throw new InvalidOperationException(
+                "PhoneOtpLogin tenant override cannot enable MultiAccount when PhoneOtpLogin:Enabled is false.");
         }
 
         if (!phoneOtpConfig.Enabled)
@@ -71,6 +78,87 @@ public static class PhoneOtpServiceCollectionExtensions
                 "PhoneOtpLogin:DefaultRegion must be an ISO-3166 alpha-2 region code (e.g., 'VN').");
         }
 
+        if (phoneOtpConfig.UserApi.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(phoneOtpConfig.UserApi.BaseUrl))
+            {
+                throw new InvalidOperationException(
+                    "PhoneOtpLogin:UserApi:BaseUrl must be configured when PhoneOtpLogin:UserApi:Enabled is true.");
+            }
+
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<IPhoneNumberNormalizer, PhoneNumberNormalizer>();
+            services.AddSingleton<PhoneOtpSessionCookieCodec>();
+            services.AddSingleton<IPhoneOtpAntiBotChallenge, NoopPhoneOtpAntiBotChallenge>();
+            services.AddScoped<IPhoneOtpRateLimiter, PhoneOtpRateLimiter>();
+            services.AddScoped<IExternalPhoneOtpClient, ExternalPhoneOtpClient>();
+            services.AddHttpClient("ExternalPhoneOtpUserApi", client =>
+            {
+                client.BaseAddress = new Uri(phoneOtpConfig.UserApi.BaseUrl, UriKind.Absolute);
+                client.Timeout = TimeSpan.FromSeconds(Math.Max(1, phoneOtpConfig.UserApi.TimeoutSeconds));
+            }).ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                var environment = configuration["ASPNETCORE_ENVIRONMENT"]
+                                  ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+
+                if (isDevelopment &&
+                    Uri.TryCreate(phoneOtpConfig.UserApi.BaseUrl, UriKind.Absolute, out var baseUri) &&
+                    baseUri.Scheme == Uri.UriSchemeHttps &&
+                    (baseUri.IsLoopback ||
+                     string.Equals(baseUri.Host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                     baseUri.Host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return new HttpClientHandler
+                    {
+                        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                    };
+                }
+
+                return new HttpClientHandler();
+            });
+
+            if (phoneOtpConfig.HasAnyMultiAccountEnabled())
+            {
+                services.AddSingleton<PhoneOtpAccountSelectCookieCodec>();
+                services.AddSingleton<ISelectionTokenProtector, SelectionTokenProtector>();
+                services.AddSingleton<PhoneOtpMultiAccountFeatureGateAttribute>();
+            }
+
+            return services;
+        }
+
+        var storeProvider = (phoneOtpConfig.StoreProvider ?? "Redis").Trim();
+        var useMongoStore = string.Equals(storeProvider, "MongoDb", StringComparison.OrdinalIgnoreCase);
+        var useRedisStore = string.Equals(storeProvider, "Redis", StringComparison.OrdinalIgnoreCase);
+
+        if (!useMongoStore && !useRedisStore)
+        {
+            throw new InvalidOperationException(
+                "PhoneOtpLogin:StoreProvider must be either 'Redis' or 'MongoDb'.");
+        }
+
+        if (useMongoStore)
+        {
+            if (string.IsNullOrWhiteSpace(phoneOtpConfig.MongoConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "PhoneOtpLogin:MongoConnectionString must be configured when PhoneOtpLogin:StoreProvider=MongoDb.");
+            }
+
+            if (string.IsNullOrWhiteSpace(phoneOtpConfig.MongoDatabase))
+            {
+                throw new InvalidOperationException(
+                    "PhoneOtpLogin:MongoDatabase must be configured when PhoneOtpLogin:StoreProvider=MongoDb.");
+            }
+
+            if (string.IsNullOrWhiteSpace(phoneOtpConfig.MongoCollection))
+            {
+                throw new InvalidOperationException(
+                    "PhoneOtpLogin:MongoCollection must be configured when PhoneOtpLogin:StoreProvider=MongoDb.");
+            }
+        }
+
         // Twilio config validation: hard fail-fast in Production, soft fallback in non-Production.
         var twilioConfig = configuration.GetSection("SmsConfiguration:Twilio").Get<SmsTwilioConfiguration>()
                            ?? new SmsTwilioConfiguration();
@@ -101,7 +189,14 @@ public static class PhoneOtpServiceCollectionExtensions
 
         // Singleton/scoped registrations.
         services.AddSingleton<IPhoneNumberNormalizer, PhoneNumberNormalizer>();
-        services.AddScoped<IPhoneOtpStore, RedisPhoneOtpStore>();
+        if (useMongoStore)
+        {
+            services.AddScoped<IPhoneOtpStore, MongoPhoneOtpStore>();
+        }
+        else
+        {
+            services.AddScoped<IPhoneOtpStore, RedisPhoneOtpStore>();
+        }
         services.AddScoped<IPhoneOtpRateLimiter, PhoneOtpRateLimiter>();
         services.AddScoped<IPhoneOtpService, PhoneOtpService>();
         services.AddSingleton<PhoneOtpSessionCookieCodec>();
@@ -125,7 +220,7 @@ public static class PhoneOtpServiceCollectionExtensions
         // selection-token protector + action filter chỉ khi cả parent flag và sub-flag đều bật.
         // DataProtector probe (R6.12): constructor của codec/protector throw nếu provider null
         // hoặc CreateProtector fail — fail-fast acceptable.
-        if (multi.Enabled)
+        if (phoneOtpConfig.HasAnyMultiAccountEnabled())
         {
             services.AddSingleton<PhoneOtpAccountSelectCookieCodec>();
             services.AddSingleton<ISelectionTokenProtector, SelectionTokenProtector>();
