@@ -231,6 +231,7 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Identity.Services
                 rawPassword?.Length ?? 0);
 
             var userIdentity = Mapper.Map<TUser>(user);
+            SyncTenantBindingOnEntity(userIdentity, typeof(TUserDto).GetProperty("TenantKey")?.GetValue(user) as string);
             var (identityResult, userId) = await IdentityRepository.CreateUserAsync(userIdentity, rawPassword);
             if (identityResult.Succeeded)
             {
@@ -279,6 +280,12 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Identity.Services
             if (tenantKeyProperty != null && tenantKeyProperty.CanWrite)
             {
                 tenantKeyProperty.SetValue(userIdentity, tenantKeyProperty.GetValue(identity));
+            }
+
+            var branchCodeProperty = typeof(TUser).GetProperty("BranchCode");
+            if (branchCodeProperty != null && branchCodeProperty.CanWrite)
+            {
+                branchCodeProperty.SetValue(userIdentity, branchCodeProperty.GetValue(identity));
             }
         }
 
@@ -396,12 +403,15 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Identity.Services
 
             var normalizedTenantKey = tenantKey?.Trim() ?? string.Empty;
             var currentTenantKey = tenantKeyProperty.GetValue(identity) as string ?? string.Empty;
-            if (string.Equals(currentTenantKey, normalizedTenantKey, StringComparison.OrdinalIgnoreCase))
+            var branchCodeProperty = typeof(TUser).GetProperty("BranchCode");
+            var currentBranchCode = branchCodeProperty?.GetValue(identity) as string ?? string.Empty;
+            if (string.Equals(currentTenantKey, normalizedTenantKey, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(currentBranchCode, normalizedTenantKey, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            tenantKeyProperty.SetValue(identity, normalizedTenantKey);
+            SyncTenantBindingOnEntity(identity, normalizedTenantKey);
             var (updateResult, _) = await IdentityRepository.UpdateUserAsync(identity);
             HandleIdentityError(updateResult, IdentityServiceResources.UserUpdateFailed().Description, IdentityServiceResources.IdentityErrorKey().Description, identity);
         }
@@ -420,6 +430,23 @@ namespace Skoruba.Duende.IdentityServer.Admin.BusinessLogic.Identity.Services
             }
 
             typeof(TUserDto).GetProperty("TenantKey")?.SetValue(user, tenantKey.Trim());
+        }
+
+        private static void SyncTenantBindingOnEntity(TUser user, string tenantKey)
+        {
+            var normalizedTenantKey = tenantKey?.Trim() ?? string.Empty;
+
+            var tenantKeyProperty = typeof(TUser).GetProperty("TenantKey");
+            if (tenantKeyProperty != null && tenantKeyProperty.CanWrite)
+            {
+                tenantKeyProperty.SetValue(user, normalizedTenantKey);
+            }
+
+            var branchCodeProperty = typeof(TUser).GetProperty("BranchCode");
+            if (branchCodeProperty != null && branchCodeProperty.CanWrite)
+            {
+                branchCodeProperty.SetValue(user, normalizedTenantKey);
+            }
         }
 
         private async Task SetFirstTimeLoginStateAsync(TUser user, bool value)
